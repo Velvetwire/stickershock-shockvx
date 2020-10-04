@@ -1,0 +1,7 @@
+# OSX finder files
+.DS_Store
+
+# Intermediate files
+*Debug/
+*Release/
+

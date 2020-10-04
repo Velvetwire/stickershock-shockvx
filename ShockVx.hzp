@@ -1,0 +1,97 @@
+<!DOCTYPE CrossStudio_Project_File>
+<solution Name="ShockVx" target="8" version="2">
+  <project Name="ShockVx">
+    <configuration
+      Core="nRF52832_AA"
+      Name="Common"
+      Placement="Flash"
+      arm_architecture="v7EM"
+      arm_core_type="Cortex-M4"
+      arm_fp_abi="Hard"
+      arm_fpu_type="FPv4-SP-D16"
+      arm_linker_heap_size="32768"
+      arm_linker_process_stack_size="256"
+      arm_linker_stack_size="1792"
+      arm_simulator_memory_simulation_filename="$(TargetsDir)/nRF51/nRF51SimulatorMemory$(HostDLL)"
+      arm_simulator_memory_simulation_parameter="nRF52832;0x80000;0x10000"
+      arm_target_loader_applicable_loaders="Flash"
+      arm_target_loader_default_loader="Flash"
+      c_additional_options="-fms-extensions"
+      c_system_include_directories="$(PackagesDir)/stickershock/include;$(PackagesDir)/systemshock/include;$(TargetsDir)/CMSIS_3/CMSIS/Include;$(TargetsDir)/nRF51/CMSIS;$(StudioDir)/include"
+      c_user_include_directories="$(ProjectDir)/application;$(ProjectDir)/application/modules;$(ProjectDir)/application/services;$(ProjectDir)/application/support"
+      debug_additional_load_file="$(PackagesDir)/stickershock/image/stickershock.hex"
+      debug_register_definition_file="$(TargetsDir)/systemshock/peripheral_map_nRF52832.xml"
+      debug_start_from_entry_point_symbol="No"
+      debug_threads_script="$(PackagesDir)/libraries/libctl/source/threads.js"
+      default_vector_section=".vectors"
+      gcc_entry_point="__restart"
+      gcc_wchar_size="16-Bit"
+      libctl="Yes"
+      link_use_multi_threaded_libraries="yes"
+      linker_additional_files="$(PackagesDir)/stickershock/library/stickershock.a;$(PackagesDir)/systemshock/library/softdevice.a;$(PackagesDir)/systemshock/library/storage.a;$(PackagesDir)/systemshock/library/support.a;$(PackagesDir)/systemshock/library/system.a"
+      linker_keep_symbols="_vectors"
+      linker_memory_map_file="$(TargetsDir)/systemshock/memory_map_nRF52832_AA.xml"
+      linker_output_format="hex"
+      linker_section_placement_file="$(TargetsDir)/systemshock/memory_placement.xml"
+      linker_section_placement_macros=""
+      package_dependencies="Stickershock;Systemshock;nRF51;libctl"
+      project_directory=""
+      project_type="Executable"
+      property_groups_file_path="$(TargetsDir)/systemshock/project_properties.xml"
+      target_get_partname_script="GetPartName()"
+      target_reset_script="Reset()"
+      target_script_file="$(TargetsDir)/nRF51/nRF51_Target.js" />
+    <configuration
+      Name="Flash"
+      arm_target_flash_loader_file_path="$(TargetsDir)/nRF51/Release/Loader.elf"
+      arm_target_loader_can_erase_all="Yes"
+      target_reset_script="FLASHReset()" />
+    <folder Name="Application Logic">
+      <configuration Name="Common" filter="c;cpp;cxx;cc;h;s;asm;inc" />
+      <file file_name="application/application.c" />
+      <file file_name="application/shockvx.c" />
+    </folder>
+    <folder Name="Application Services">
+      <configuration Name="Common" filter="c;cpp;cxx;cc;h;s;asm;inc" />
+      <file file_name="application/services/control.c" />
+      <file file_name="application/services/handling.c" />
+      <file file_name="application/services/records.c" />
+      <file file_name="application/services/telemetry.c" />
+    </folder>
+    <folder Name="Application Modules">
+      <file file_name="application/modules/archive.c" />
+      <file file_name="application/modules/sensors.c" />
+    </folder>
+    <folder Name="Application Support">
+      <file file_name="application/support/beacon.c" />
+      <file file_name="application/support/bluetooth.c" />
+      <file file_name="application/support/broadcast.c" />
+      <file file_name="application/support/peripheral.c" />
+    </folder>
+  </project>
+  <configuration Name="THUMB Debug" inherited_configurations="THUMB;Debug" />
+  <configuration
+    Name="THUMB"
+    Platform="ARM"
+    arm_instruction_set="Thumb"
+    arm_library_instruction_set="Thumb"
+    c_preprocessor_definitions="__THUMB"
+    hidden="Yes" />
+  <configuration
+    Name="Debug"
+    c_preprocessor_definitions="DEBUG"
+    gcc_debugging_level="Level 3"
+    gcc_omit_frame_pointer="Yes"
+    gcc_optimization_level="None"
+    hidden="Yes" />
+  <configuration
+    Name="THUMB Release"
+    inherited_configurations="THUMB;Release" />
+  <configuration
+    Name="Release"
+    c_preprocessor_definitions="NDEBUG"
+    gcc_debugging_level="None"
+    gcc_omit_frame_pointer="Yes"
+    gcc_optimization_level="Level 1"
+    hidden="Yes" />
+</solution>
