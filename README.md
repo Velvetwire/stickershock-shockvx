@@ -1,0 +1,1 @@
+ShockVx is an asset telemetry track and trace firmware application for the Stickershock sensor.
