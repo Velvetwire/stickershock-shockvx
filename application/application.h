@@ -67,6 +67,11 @@ typedef   struct {
             unsigned short            build;                                    //  build number
             } firmware;
 
+          struct {
+            float                     percent;
+            float                     voltage;
+            } battery;
+
           application_settings_t      settings;
 
           struct {
@@ -148,7 +153,7 @@ static    void                        application_lower ( application_t * applic
           void                        application_schedule ( application_t * application );
           void                        application_timecode ( application_t * application );
 
-#define   APPLICATION_PERIOD          ((float) 15.0)
+#define   APPLICATION_PERIOD          ((float) 60.0)
 
 //-----------------------------------------------------------------------------
 // Application indication modes
@@ -181,8 +186,9 @@ typedef   enum {
           void                        application_charger ( application_t * application );
           void                        application_battery ( application_t * application );
 
-#define   CRITICAL_BATTERY_THRESHOLD  ((float) 3.25)                            // Critical battery alert level
-#define   STARTING_BATTERY_THRESHOLD  ((float) 3.50)                            // Minimum battery power before startup
+#define   STARTING_BATTERY_THRESHOLD  ((float) 3.00)                            // Minimum battery power before startup
+#define   INDICATE_BATTERY_THRESHOLD  ((float) 3.25)                            // Minimum battery to allow indication
+#define   CRITICAL_BATTERY_THRESHOLD  ((float) 3.50)                            // Critical battery alert level
 
 //-----------------------------------------------------------------------------
 // Communication events.
@@ -207,20 +213,28 @@ typedef   enum {
           void                        application_cancel ( application_t * application );
 
 //-----------------------------------------------------------------------------
-// Telemetry updates and record queries
+// Periodic telemetry and handling updates
 //-----------------------------------------------------------------------------
 
-#define   APPLICATION_EVENT_SENSOR    (1 << 16)
-#define   APPLICATION_EVENT_ANGLES    (1 << 15)
-#define   APPLICATION_EVENT_ORIENT    (1 << 14)
-#define   APPLICATION_EVENT_FALLEN    (1 << 13)
-#define   APPLICATION_EVENT_LIMITS    (1 << 12)
+#define   APPLICATION_EVENT_TELEMETRY (1 << 16)
+#define   APPLICATION_EVENT_HANDLING  (1 << 15)
 
-          void                        application_sensor ( application_t * application );
-          void                        application_angles ( application_t * application );
-          void                        application_orient ( application_t * application );
-          void                        application_fallen ( application_t * application );
-          void                        application_limits ( application_t * application );
+          void                        application_telemetry ( application_t * application );
+          void                        application_handling ( application_t * application );
+
+//-----------------------------------------------------------------------------
+// Movement related events
+//-----------------------------------------------------------------------------
+
+#define   APPLICATION_EVENT_ORIENTED  (1 << 14)
+#define   APPLICATION_EVENT_STRESSED  (1 << 13)
+#define   APPLICATION_EVENT_DROPPED   (1 << 12)
+#define   APPLICATION_EVENT_TILTED    (1 << 11)
+
+          void                        application_oriented ( application_t * application );
+          void                        application_stressed ( application_t * application );
+          void                        application_dropped ( application_t * application );
+          void                        application_tilted ( application_t * application );
 
 //=============================================================================
 #endif

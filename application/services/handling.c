@@ -100,15 +100,15 @@ unsigned handling_settings ( handling_values_t * limit ) {
   }
 
 //-----------------------------------------------------------------------------
-//  function: handling_values ( values )
+//  function: handling_observed ( values )
 // arguments: values - values to update
 //   returns: NRF_SUCCESS - if update issued
 //            NRF_ERROR_INVALID_STATE - if service is not registered
 //
-// Update the tilt angle characteristic.
+// Update the observed handling characeristic values.
 //-----------------------------------------------------------------------------
 
-unsigned handling_values ( handling_values_t * values ) {
+unsigned handling_observed ( handling_values_t * values ) {
 
   handling_t *               handling = &(resource);
   unsigned                     result = NRF_SUCCESS;

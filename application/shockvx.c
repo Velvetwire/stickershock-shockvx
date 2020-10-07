@@ -11,7 +11,6 @@
 #include  <stickershock.h>
 
 #include  "settings.h"
-#include  "bluetooth.h"
 #include  "application.h"
 #include  "shockvx.h"
 
@@ -240,13 +239,17 @@ void main ( application_t * application ) {
     if ( status & APPLICATION_EVENT_STROBE ) { application_strobe ( application ); }
     if ( status & APPLICATION_EVENT_CANCEL ) { application_cancel ( application ); }
 
-    // Sensor and telemetry events.
+    // Periodic telemetry and handling events.
 
-    if ( status & APPLICATION_EVENT_SENSOR ) { application_sensor ( application ); }
-    if ( status & APPLICATION_EVENT_ANGLES ) { application_angles ( application ); }
-    if ( status & APPLICATION_EVENT_ORIENT ) { application_orient ( application ); }
-    if ( status & APPLICATION_EVENT_FALLEN ) { application_fallen ( application ); }
-    if ( status & APPLICATION_EVENT_LIMITS ) { application_limits ( application ); }
+    if ( status & APPLICATION_EVENT_TELEMETRY ) { application_telemetry ( application ); }
+    if ( status & APPLICATION_EVENT_HANDLING ) { application_handling ( application ); }
+    
+    // Movement related events.
+
+    if ( status & APPLICATION_EVENT_ORIENTED ) { application_oriented ( application ); }
+    if ( status & APPLICATION_EVENT_STRESSED ) { application_stressed ( application ); }
+    if ( status & APPLICATION_EVENT_DROPPED ) { application_dropped ( application ); }
+    if ( status & APPLICATION_EVENT_TILTED ) { application_tilted ( application ); }
 
     }
 

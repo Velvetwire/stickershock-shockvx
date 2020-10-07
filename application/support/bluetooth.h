@@ -148,29 +148,46 @@ typedef   enum {                                                                
           unsigned                    control_identify ( unsigned * duration );
 
 //-----------------------------------------------------------------------------
+// Sensor telemetry settings GATT service
 //-----------------------------------------------------------------------------
 
 #define   TELEMETRY_DEFAULT_INTERVAL  ((float) 15.0)                            // Collect telemetry every 15 seconds
 #define   TELEMETRY_SERVICE_INTERVAL  ((float) 2.5)                             // Every 2.5 seconds when connected
 
-typedef   struct __attribute__ (( packed )) {
 
-          float                       surface;                                  // Surface temperature (deg C)
-          float                       ambient;                                  // Ambient temperature (deg C)
+          const void *                telemetry_uuid ( void );
+          unsigned                    telemetry_register ( float interval, float archival );
+          unsigned                    telemetry_settings ( float * interval, float * archival );
+
+//-----------------------------------------------------------------------------
+// Surface temperature telemetry GATT service
+//-----------------------------------------------------------------------------
+
+          unsigned                    surface_register ( float lower, float upper );
+          unsigned                    surface_settings ( float * lower, float * upper );
+          unsigned                    surface_measured ( float value );
+
+//-----------------------------------------------------------------------------
+// Atmospheric telemetry GATT service
+//-----------------------------------------------------------------------------
+
+typedef   struct {
+
+          float                       temperature;                              // Air temperature (deg C)
           float                       humidity;                                 // Humidity (saturation)
           float                       pressure;                                 // Air pressure (bars)
 
-          } telemetry_values_t;
+          } atmosphere_values_t;
 
-          const void *                telemetry_uuid ( void );
-          unsigned                    telemetry_register ( float interval, telemetry_values_t * lower, telemetry_values_t * upper );
-          unsigned                    telemetry_settings ( float * interval, telemetry_values_t * lower, telemetry_values_t * upper );
-          unsigned                    telemetry_values ( telemetry_values_t * values );
+          unsigned                    atmosphere_register ( atmosphere_values_t * lower, atmosphere_values_t * upper );
+          unsigned                    atmosphere_settings ( atmosphere_values_t * lower, atmosphere_values_t * upper );
+          unsigned                    atmosphere_measured ( atmosphere_values_t * values );
 
 //-----------------------------------------------------------------------------
+// Orientation and handling GATT service
 //-----------------------------------------------------------------------------
 
-typedef   struct __attribute__ (( packed )) {
+typedef   struct {
 
           float                       force;                                    // Force (in gravs)
           float                       angle;                                    // Angle (in degrees)
@@ -182,7 +199,7 @@ typedef   struct __attribute__ (( packed )) {
           const void *                handling_uuid ( void );
           unsigned                    handling_register ( handling_values_t * limits );
           unsigned                    handling_settings ( handling_values_t * limits );
-          unsigned                    handling_values ( handling_values_t * values );
+          unsigned                    handling_observed ( handling_values_t * values );
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------

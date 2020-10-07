@@ -4,7 +4,7 @@
 //  author: Velvetwire, llc
 //    file: telemetry.h
 //
-// Telemetry metrics and settings service.
+// Telemetry control and settings service.
 //
 // (c) Copyright 2016-2020 Velvetwire, LLC. All rights reserved.
 //=============================================================================
@@ -32,20 +32,14 @@ typedef   struct {
           struct {                                                              // Characteristic handles:
 
             ble_gatts_char_handles_t  interval;                                 //  Interval characteristic
-
-            ble_gatts_char_handles_t  value;                                    //  Value characteristic
-            ble_gatts_char_handles_t  lower;                                    //  Lower limit characteristic
-            ble_gatts_char_handles_t  upper;                                    //  Upper limit characteristic
+            ble_gatts_char_handles_t  archival;                                 //  Archival characteristic
 
             } handle;
 
           struct {                                                              // Characteristic values:
 
             float                     interval;                                 //  Measurement interval (seconds)
-
-            telemetry_values_t        value;                                    //  Measured values
-            telemetry_values_t        lower;                                    //  Lower limits
-            telemetry_values_t        upper;                                    //  Upper limits
+            float                     archival;                                 //  Archive interval (seconds)
 
             } value;
 
@@ -60,25 +54,15 @@ static    unsigned                    telemetry_write ( telemetry_t * telemetry,
 
 #define   TELEMETRY_INTERVAL_UUID     (0x54654D69)                              // 32-bit characteristic UUID component (TeMi)
 
-static    unsigned                    telemetry_interval_characteristic ( telemetry_t * telemetry );
+static    unsigned                    telemetry_interval_characteristic ( telemetry_t * telemetry, float period );
 
 //-----------------------------------------------------------------------------
-// Measurement value characteristic
+// Archive interval characteristic
 //-----------------------------------------------------------------------------
 
-#define   TELEMETRY_VALUE_UUID        (0x54654D76)                              // 32-bit characteristic UUID component (TeMv)
+#define   TELEMETRY_ARCHIVAL_UUID     (0x54654169)                              // 32-bit characteristic UUID component (TeAi)
 
-static    unsigned                    telemetry_value_characteristic ( telemetry_t * telemetry );
-
-//-----------------------------------------------------------------------------
-// Value limits characteristic
-//-----------------------------------------------------------------------------
-
-#define   TELEMETRY_LOWER_UUID        (0x54654C6C)                              // 32-bit characteristic UUID component (TeLl)
-#define   TELEMETRY_UPPER_UUID        (0x5465556C)                              // 32-bit characteristic UUID component (TeUl)
-
-static    unsigned                    telemetry_lower_characteristic ( telemetry_t * telemetry );
-static    unsigned                    telemetry_upper_characteristic ( telemetry_t * telemetry );
+static    unsigned                    telemetry_archival_characteristic ( telemetry_t * telemetry, float period );
 
 //=============================================================================
 #endif

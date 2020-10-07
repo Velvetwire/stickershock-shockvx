@@ -12,7 +12,7 @@
 #define   __SHOCKVX__
 
 //=============================================================================
-// SECTION : SENSOR SERVICE
+// SECTION : TELEMETRY SENSORS SERVICE
 //=============================================================================
 
 //-----------------------------------------------------------------------------
@@ -27,22 +27,51 @@
 //-----------------------------------------------------------------------------
 
 typedef   enum {                                                                // Module notices:
-          SENSORS_NOTICE_ORIENTATION,                                           //  orientation change
           SENSORS_NOTICE_TELEMETRY,                                             //  telemetry updated
-          SENSORS_NOTICE_FREEFALL,                                              //  freefall detected
           SENSORS_NOTICES
           } sensors_notice_t;
 
           unsigned                    sensors_notice ( sensors_notice_t notice, CTL_EVENT_SET_t * set, CTL_EVENT_SET_t events );
 
-          unsigned                    sensors_telemetry ( telemetry_values_t * telemetry );
-          unsigned                    sensors_handling ( handling_values_t * handling );
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+          unsigned                    sensors_temperature ( float * temperature );
+          unsigned                    sensors_atmosphere ( float * temperature, float * humidity, float * pressure );
+
+
+//=============================================================================
+// SECTION : MOVEMENT AND ORIENTATION DETECTION SERVICE
+//=============================================================================
+
+          unsigned                    movement_start ( unsigned option );
+          unsigned                    movement_begin ( float interval );
+          unsigned                    movement_cease ( void );
+          unsigned                    movement_close ( void );
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 
-          unsigned                    sensors_angles ( float * limit );
-          unsigned                    sensors_forces ( float * limit );
+typedef   enum {                                                                // Module notices:
+          MOVEMENT_NOTICE_ORIENTATION,                                          //  orientation change
+          MOVEMENT_NOTICE_MOVEMENT,                                             //  periodic movement update
+          MOVEMENT_NOTICE_FREEFALL,                                             //  freefall detected
+          MOVEMENT_NOTICE_STARTED,                                              //  movement activity started
+          MOVEMENT_NOTICE_STOPPED,                                              //  movement activity stopped
+          MOVEMENT_NOTICE_STRESS,                                               //  excessive force detected
+          MOVEMENT_NOTICE_TILT,                                                 //  excessive tilt detected
+          MOVEMENT_NOTICES
+          } movement_notice_t;
+
+          unsigned                    movement_notice ( movement_notice_t notice, CTL_EVENT_SET_t * set, CTL_EVENT_SET_t events );
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+          unsigned                    movement_temperature ( float * temperature );
+          unsigned                    movement_forces ( float * force, float * x, float * y, float * z );
+          unsigned                    movement_angles ( float * angle, char * orientation );
+          unsigned                    movement_limits ( float force, float angle );
 
 
 //=============================================================================

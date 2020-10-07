@@ -57,23 +57,36 @@ typedef   struct {
           struct  {                                                             // Telemetry settings:
 
             float                     interval;                                 //  Telemetry measurement interval (0 = off)
-            float                     archival;                                 //  Telemetry archival interval (0 = off)
-
-            struct {                                                            //  Telemetry limits (alarm triggers):
-
-              telemetry_values_t      lower;                                    //   Lower telemetry limits
-              telemetry_values_t      upper;                                    //   Upper telemetry limits
-
-              } limits;
+            float                     archival;                                 //  Telemetry archive interval (0 = off)
 
             } telemetry;
+ 
+          // The surface settings control the surface measurements that
+          // are permitted.
+
+          struct {
+            
+            float                     lower;                                    //  Lower surface limit
+            float                     upper;                                    //  Upper surface limit
+
+            } surface;
+
+          // The atmospheric settings control the telemetry limits that
+          // are permitted.
+          
+          struct {                                                              // Atmospheric settings:
+
+            atmosphere_values_t       lower;                                    //  Lower telemetry limits
+            atmosphere_values_t       upper;                                    //  Upper telemetry limits
+
+            } atmosphere;
 
           // The handling settings control how the device responds to
           // g-forces and tilt angles.
 
           struct {                                                              // Handling settings:
 
-            handling_values_t         limits;                                   //  Handling limits
+            handling_values_t         limit;                                    //  Handling limits
 
             } handling;
 

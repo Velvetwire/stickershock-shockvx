@@ -32,6 +32,8 @@ typedef   struct {
           CTL_EVENT_SET_t             status;                                   // State and event bits
           CTL_NOTICE_t                notice [ SENSORS_NOTICES ];               // Module notices
 
+          CTL_TIME_t                  period;                                   // Measurment period (milliseconds)
+
           struct {                                                              // Humidity sensor readings:
             float                     temperature;                              //  Ambient temperature
             float                     measurement;                              //  Humidity reading
@@ -42,29 +44,9 @@ typedef   struct {
             float                     measurement;                              //  Pressure reading
             } pressure;
 
-          struct {                                                              // Motion sensor readings:
-            float                     temperature;                              //  Surface temperature
-            } surface;
-
-          struct {                                                              // CPU readings:
+          struct {                                                              // Surface readings:
             float                     temperature;                              //  Die temperature
-            } core;
-
-          struct {                                                              // Motion sensor vectors:
-            motion_angular_vectors_t  angular;                                  //  Angular rotation vector
-            motion_linear_vectors_t   linear;                                   //  Linear acceleration vector
-            } vectors;
-
-          struct {                                                              // Motion sensor computations:
-            float                     force;                                    //  Force experienced
-            float                     limit;                                    //  Force limit experienced
-            } motion;
-
-          struct {                                                              // Motion sensor angles:
-            float                     angle;                                    //  Angle computation
-            float                     limit;                                    //  Angle tilt limit
-            unsigned char             orientation;                              //  Orientation face
-            } tilt;
+            } surface;
 
           } sensors_t;
 
@@ -73,19 +55,17 @@ static    void                        sensors_manager ( sensors_t * sensors );
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 
-#define   SENSORS_MANAGER_EVENTS      (0x6000ffff)
-#define   SENSORS_MANAGER_STATES      (0x9fff0000)
+#define   SENSORS_MANAGER_EVENTS      (0x7000ffff)
+#define   SENSORS_MANAGER_STATES      (0x8fff0000)
 
 #define   SENSORS_STATE_CLOSED        (1 << 31)                                 // Module has been closed
 #define   SENSORS_EVENT_SHUTDOWN      (1 << 30)                                 // Request module shutdown
 #define   SENSORS_EVENT_SETTINGS      (1 << 29)                                 // Configure settings
+#define   SENSORS_EVENT_STANDBY       (1 << 28)                                 // Switch to standby
 
 static    void                        sensors_shutdown ( sensors_t * sensors );
 static    void                        sensors_settings ( sensors_t * sensors );
-
-#define   SENSORS_STATE_MOVEMENT      (1 << 27)                                 // Movement has occurred
-#define   SENSORS_STATE_FREEFALL      (1 << 26)                                 // Free fall detected
-#define   SENSORS_STATE_VECTORS       (1 << 25)                                 // Valid vectors available
+static    void                        sensors_standby ( sensors_t * sensors );
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -95,7 +75,6 @@ static    void                        sensors_settings ( sensors_t * sensors );
 #define   SENSORS_VALUE_AMBIENT       (1 << 21)                                 // Ambient temperature available
 #define   SENSORS_VALUE_STANDBY       (1 << 20)                                 // Standby temperature available
 #define   SENSORS_VALUE_SURFACE       (1 << 19)                                 // Surface temperature available
-#define   SENSORS_VALUE_CORE          (1 << 18)                                 // Core temperature available
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -103,24 +82,6 @@ static    void                        sensors_settings ( sensors_t * sensors );
 #define   SENSORS_EVENT_PERIODIC      (1 << 15)
 
 static    void                        sensors_periodic ( sensors_t * sensors );
-
-//-----------------------------------------------------------------------------
-// Motion sensor events
-//-----------------------------------------------------------------------------
-
-#define   SENSORS_EVENT_ORIENTATION   (1 << 14)
-#define   SENSORS_EVENT_FREEFALL      (1 << 13)
-#define   SENSORS_EVENT_VECTORS       (1 << 12)
-
-static    void                        sensors_orientation ( sensors_t * sensors );
-static    void                        sensors_freefall ( sensors_t * sensors );
-static    void                        sensors_vectors ( sensors_t * sensors );
-
-#define   SENSORS_EVENT_ACTIVE        (1 << 11)
-#define   SENSORS_EVENT_ASLEEP        (1 << 10)
-
-static    void                        sensors_active ( sensors_t * sensors );
-static    void                        sensors_asleep ( sensors_t * sensors );
 
 //=============================================================================
 #endif
