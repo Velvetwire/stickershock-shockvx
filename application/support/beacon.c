@@ -16,7 +16,7 @@
 #include  "beacon.h"
 
 //=============================================================================
-// SECTION :
+// SECTION : BEACON BROADCAST MANAGER
 //=============================================================================
 
 //-----------------------------------------------------------------------------
@@ -77,7 +77,7 @@ unsigned beacon_state ( bool * active ) {
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 
-unsigned beacon_begin ( float interval, float period, signed char power ) {
+unsigned beacon_begin ( float interval, float period, signed char power, beacon_type_t type ) {
 
   beacon_t *                   beacon = &(resource);
   unsigned                     result = NRF_SUCCESS;
@@ -94,9 +94,9 @@ unsigned beacon_begin ( float interval, float period, signed char power ) {
     beacon->broadcast.flags           = period
                                       ? BLE_GAP_ADV_FLAGS_LE_ONLY_LIMITED_DISC_MODE
                                       : BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
-    beacon->broadcast.power           = power;
 
-    beacon->broadcast.code            = BROADCAST_PACKET_CODE;
+    beacon->broadcast.power           = power;
+    beacon->broadcast.type            = type;
 
     ctl_events_set_clear ( &(beacon->status), BEACON_EVENT_BEGIN, BEACON_CLEAR_BEGIN );
 
@@ -198,6 +198,11 @@ unsigned beacon_notice ( beacon_notice_t notice, CTL_EVENT_SET_t * set, CTL_EVEN
   return ( ctl_mutex_unlock ( &(beacon->mutex) ), NRF_SUCCESS );
 
   }
+
+
+//=============================================================================
+// SECTION : BEACON BROADCAST INTERFACE
+//=============================================================================
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -370,10 +375,10 @@ unsigned beacon_orientation ( float angle, unsigned char orientation ) {
   if ( thread ) { ctl_mutex_lock_uc ( &(beacon->mutex) ); }
   else return ( NRF_ERROR_INVALID_STATE );
   
-  beacon->record.handling.angle                     = (char) roundf ( angle );
-  beacon->record.handling.orientation               = beacon->record.handling.orientation
-                                                    | BROADCAST_HANLDING_FACE( orientation)
-                                                    | BROADCAST_ORIENTATION_ANGLE;
+  beacon->record.handling.angle       = (char) roundf ( angle );
+  beacon->record.handling.orientation = beacon->record.handling.orientation
+                                      | BROADCAST_HANLDING_FACE( orientation)
+                                      | BROADCAST_ORIENTATION_ANGLE;
 
   // Request construction of an updated broadcast packet.
 
@@ -398,8 +403,8 @@ unsigned beacon_misoriented ( void ) {
   if ( thread ) { ctl_mutex_lock_uc ( &(beacon->mutex) ); }
   else return ( NRF_ERROR_INVALID_STATE );
   
-  beacon->record.handling.orientation               = beacon->record.handling.orientation
-                                                    | BROADCAST_ORIENTATION_FACE;
+  beacon->record.handling.orientation = beacon->record.handling.orientation
+                                      | BROADCAST_ORIENTATION_FACE;
 
   // Release the resource and return with result.
 
@@ -536,26 +541,9 @@ static void beacon_shutdown ( beacon_t * beacon ) {
 
 static void beacon_configure ( beacon_t * beacon ) {
 
-  // Disable any ongoing broadcast before contructing a new advertisement.
-
-  softble_advertisement_cease ( );
-
-  // Program the duration and broadcast rate of the advertisement period and
-  // register to receive notices when it expires.
-
-  if ( NRF_SUCCESS == softble_advertisement_period ( BLE_GAP_ADV_TYPE_EXTENDED_NONCONNECTABLE_SCANNABLE_UNDIRECTED, beacon->broadcast.interval, beacon->broadcast.period ) ) {
-
-    // Set up notifications for advertisment start and stop.
-
-    softdevice_notice ( SOFTBLE_NOTICE_ADVERTISE_START, &(beacon->status), BEACON_EVENT_ADVERTISE );
-    softdevice_notice ( SOFTBLE_NOTICE_ADVERTISE_CEASE, &(beacon->status), BEACON_EVENT_TERMINATE );
-
-    // Interested whenever the beacon broadcast is inspected.
-
-    softdevice_notice ( SOFTBLE_NOTICE_INSPECTED, &(beacon->status), BEACON_EVENT_INSPECTED );
-
-    }
-
+  if ( beacon->broadcast.type == BEACON_TYPE_BLE_5 ) { beacon_configure_ble_5 ( beacon ); }
+  else { beacon_configure_ble_4 ( beacon ); }
+  
   }
 
 //-----------------------------------------------------------------------------
@@ -563,70 +551,8 @@ static void beacon_configure ( beacon_t * beacon ) {
 
 static void beacon_construct ( beacon_t * beacon ) {
 
-  softble_advertisement_t *      data = NULL;
-  softble_advertisement_t *      scan = softble_advertisement_create ( );
-  broadcast_packet_t *         packet = broadcast_packet ( beacon->broadcast.code );
-  const void *               security = access_key ( );
-
-  // Construct a broadcast data packet to contain either a secure identity
-  // record or a standard identity record, depending on the presence of a key.
-
-  if ( packet ) {
-
-    broadcast_identity_t     identity = { .timecode = ctl_time_get ( ), .identity = *((hash_t *) NRF_FICR->DEVICEID) };
-    identity.horizon                  = beacon->record.horizon;
-    identity.battery                  = beacon->record.battery;
-
-    if ( security ) { identity.security = hash ( security, &(identity), sizeof(unsigned) + sizeof(hash_t) ); }
-    if ( security ) { broadcast_append ( packet, &(identity), sizeof(broadcast_identity_t), BROADCAST_TYPE_SECURE( BROADCAST_TYPE_IDENTITY ) ); }
-    else { broadcast_append ( packet, &(identity), sizeof(broadcast_identity_t), BROADCAST_TYPE_NORMAL( BROADCAST_TYPE_IDENTITY ) ); }
-
-    broadcast_append ( packet, &(beacon->record.variant), sizeof(broadcast_variant_t), BROADCAST_TYPE_NORMAL(BROADCAST_TYPE_VARIANT) );
-
-    }
-
-  // Append the telemetry information for the surface temperature, atmospherics
-  // and handling.
-
-  if ( packet ) {
-    
-    broadcast_append ( packet, &(beacon->record.temperature), sizeof(broadcast_temperature_t), BROADCAST_TYPE_NORMAL(BROADCAST_TYPE_TEMPERATURE) );
-    broadcast_append ( packet, &(beacon->record.atmosphere), sizeof(broadcast_atmosphere_t), BROADCAST_TYPE_NORMAL(BROADCAST_TYPE_ATMOSPHERE) );
-    broadcast_append ( packet, &(beacon->record.handling), sizeof(broadcast_handling_t), BROADCAST_TYPE_NORMAL(BROADCAST_TYPE_HANDLING) );
-
-    }
-
-  // Add the broadcast packet to the scan data.
-
-  if ( scan && packet ) { softble_advertisement_append ( scan, BLE_GAP_AD_TYPE_SERVICE_DATA, packet, broadcast_length ( packet ) + sizeof(short) ); }
-
-  // If there is new advertising broadcast data, update the bluetooth
-  // stack with the new broadcast.
-
-  if ( data || scan ) {
-
-    unsigned result = NRF_SUCCESS;
-
-    // Update the BLE stack with the new advertising packet.
-
-    if ( NRF_SUCCESS == (result = softble_advertisement_packet ( data, scan ) )) { ctl_events_set ( &(beacon->status), BEACON_STATE_PACKET ); }
-    else { ctl_events_clear ( &(beacon->status), BEACON_STATE_PACKET ); }
-
-    // Free the the old advertising packet.
-
-    free ( beacon->advertisement.data );
-    free ( beacon->advertisement.scan );
-
-    }
-
-  // Update the resource with the new advertisement records.
-
-  beacon->advertisement.data      = data;
-  beacon->advertisement.scan      = scan;
-
-  // Clean up the data packet.
-
-  free ( packet );
+  if ( beacon->broadcast.type == BEACON_TYPE_BLE_5 ) { beacon_construct_ble_5 ( beacon ); }
+  else { beacon_construct_ble_4 ( beacon ); }
 
   }
 
@@ -671,6 +597,7 @@ static void beacon_terminate ( beacon_t * beacon ) {
   }
 
 //-----------------------------------------------------------------------------
+// A peer device has sniffed the scan packet.
 //-----------------------------------------------------------------------------
 
 static void beacon_inspected ( beacon_t * beacon ) {
@@ -679,3 +606,216 @@ static void beacon_inspected ( beacon_t * beacon ) {
 
   }
 
+
+//=============================================================================
+// SECTION : BEACON BROADCAST UTILITIES
+//=============================================================================
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+static void beacon_configure_ble_4 ( beacon_t * beacon ) {
+
+  // Disable any ongoing broadcast before contructing a new advertisement.
+
+  softble_advertisement_cease ( );
+
+  // Program the duration and broadcast rate of the advertisement period and
+  // register to receive notices when it expires.
+
+  if ( NRF_SUCCESS == softble_advertisement_period ( BLE_GAP_ADV_TYPE_NONCONNECTABLE_SCANNABLE_UNDIRECTED, beacon->broadcast.interval, beacon->broadcast.period ) ) {
+
+    // Set up notifications for advertisment start and stop.
+
+    softdevice_notice ( SOFTBLE_NOTICE_ADVERTISE_START, &(beacon->status), BEACON_EVENT_ADVERTISE );
+    softdevice_notice ( SOFTBLE_NOTICE_ADVERTISE_CEASE, &(beacon->status), BEACON_EVENT_TERMINATE );
+
+    // Interested whenever the beacon broadcast is inspected.
+
+    softdevice_notice ( SOFTBLE_NOTICE_INSPECTED, &(beacon->status), BEACON_EVENT_INSPECTED );
+
+    }
+
+  }
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+static void beacon_configure_ble_5 ( beacon_t * beacon ) {
+
+  // Disable any ongoing broadcast before contructing a new advertisement.
+
+  softble_advertisement_cease ( );
+
+  // Program the duration and broadcast rate of the advertisement period and
+  // register to receive notices when it expires.
+
+  if ( NRF_SUCCESS == softble_advertisement_period ( BLE_GAP_ADV_TYPE_EXTENDED_NONCONNECTABLE_SCANNABLE_UNDIRECTED, beacon->broadcast.interval, beacon->broadcast.period ) ) {
+
+    // Set up notifications for advertisment start and stop.
+
+    softdevice_notice ( SOFTBLE_NOTICE_ADVERTISE_START, &(beacon->status), BEACON_EVENT_ADVERTISE );
+    softdevice_notice ( SOFTBLE_NOTICE_ADVERTISE_CEASE, &(beacon->status), BEACON_EVENT_TERMINATE );
+
+    // Interested whenever the beacon broadcast is inspected.
+
+    softdevice_notice ( SOFTBLE_NOTICE_INSPECTED, &(beacon->status), BEACON_EVENT_INSPECTED );
+
+    }
+
+  }
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+static void beacon_construct_ble_4 ( beacon_t * beacon ) {
+
+  softble_advertisement_t *      data = softble_advertisement_create ( );
+  softble_advertisement_t *      scan = softble_advertisement_create ( );
+  broadcast_packet_t *       standard = broadcast_packet ( BROADCAST_STANDARD_CODE );
+  broadcast_packet_t *       extended = broadcast_packet ( BROADCAST_EXTENDED_CODE );
+  const void *               security = access_key ( );
+
+  // Construct a stadard broadcast data packet to contain either a secure identity
+  // record or a normal identity record, depending on the presence of a key.
+
+  if ( standard ) {
+
+    if ( security ) {
+      
+      broadcast_security_t   identity = { .timecode = ctl_time_get ( ), .identity = *((hash_t *) NRF_FICR->DEVICEID) };
+      identity.security               = hash ( security, &(identity), sizeof(unsigned) + sizeof(hash_t) );
+      identity.horizon                = beacon->record.horizon;
+      identity.battery                = beacon->record.battery;
+
+      broadcast_append ( standard, &(identity), sizeof(broadcast_security_t), BROADCAST_TYPE_SECURE( BROADCAST_TYPE_IDENTITY ) );
+
+      } else {
+
+      broadcast_identity_t   identity = { .timecode = ctl_time_get ( ), .identity = *((hash_t *) NRF_FICR->DEVICEID) };
+      identity.horizon                = beacon->record.horizon;
+      identity.battery                = beacon->record.battery;
+      
+      broadcast_append ( standard, &(identity), sizeof(broadcast_identity_t), BROADCAST_TYPE_NORMAL( BROADCAST_TYPE_IDENTITY ) );
+      
+      }
+
+    }
+
+  // Append the atmospheric telemetry information to the extended and
+  // standard packets.
+
+  if ( extended ) { broadcast_append ( extended, &(beacon->record.atmosphere), sizeof(broadcast_atmosphere_t), BROADCAST_TYPE_NORMAL(BROADCAST_TYPE_ATMOSPHERE) ); }
+  if ( standard ) { broadcast_append ( standard, &(beacon->record.temperature), sizeof(broadcast_temperature_t), BROADCAST_TYPE_NORMAL(BROADCAST_TYPE_TEMPERATURE) ); }
+
+  // Add the broadcast packet to the scan data.
+
+  if ( data && standard ) { softble_advertisement_append ( data, BLE_GAP_AD_TYPE_SERVICE_DATA, standard, broadcast_length ( standard ) + sizeof(short) ); }
+  if ( scan && extended ) { softble_advertisement_append ( scan, BLE_GAP_AD_TYPE_SERVICE_DATA, extended, broadcast_length ( extended ) + sizeof(short) ); }
+
+  // If there is new advertising broadcast data, update the bluetooth
+  // stack with the new broadcast.
+
+  if ( data || scan ) {
+
+    // Update the BLE stack with the new advertising packet.
+
+    if ( NRF_SUCCESS == softble_advertisement_packet ( data, scan ) ) { ctl_events_set ( &(beacon->status), BEACON_STATE_PACKET ); }
+    else { ctl_events_clear ( &(beacon->status), BEACON_STATE_PACKET ); }
+
+    // Free the the old advertising packet.
+
+    free ( beacon->advertisement.data );
+    free ( beacon->advertisement.scan );
+
+    }
+
+  // Update the resource with the new advertisement records.
+
+  beacon->advertisement.data      = data;
+  beacon->advertisement.scan      = scan;
+
+  // Discard the broadcast packet scratch buffers.
+
+  free ( extended );
+  free ( standard );
+
+  }
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+static void beacon_construct_ble_5 ( beacon_t * beacon ) {
+
+  softble_advertisement_t *      scan = softble_advertisement_create ( );
+  broadcast_packet_t *       standard = broadcast_packet ( BROADCAST_STANDARD_CODE );
+  const void *               security = access_key ( );
+
+  // Construct a stadard broadcast data packet to contain either a secure identity
+  // record or a normal identity record, depending on the presence of a key.
+
+  if ( standard ) {
+
+    if ( security ) {
+      
+      broadcast_security_t   identity = { .timecode = ctl_time_get ( ), .identity = *((hash_t *) NRF_FICR->DEVICEID) };
+      identity.security               = hash ( security, &(identity), sizeof(unsigned) + sizeof(hash_t) );
+      identity.horizon                = beacon->record.horizon;
+      identity.battery                = beacon->record.battery;
+
+      broadcast_append ( standard, &(identity), sizeof(broadcast_security_t), BROADCAST_TYPE_SECURE( BROADCAST_TYPE_IDENTITY ) );
+
+      } else {
+
+      broadcast_identity_t   identity = { .timecode = ctl_time_get ( ), .identity = *((hash_t *) NRF_FICR->DEVICEID) };
+      identity.horizon                = beacon->record.horizon;
+      identity.battery                = beacon->record.battery;
+      
+      broadcast_append ( standard, &(identity), sizeof(broadcast_identity_t), BROADCAST_TYPE_NORMAL( BROADCAST_TYPE_IDENTITY ) );
+      
+      }
+
+    // Note: not using the variant at the moment
+    // broadcast_append ( standard, &(beacon->record.variant), sizeof(broadcast_variant_t), BROADCAST_TYPE_NORMAL(BROADCAST_TYPE_VARIANT) );
+
+    }
+
+  // Append the atmospheric telemetry information to the standard packet.
+
+  if ( standard ) { broadcast_append ( standard, &(beacon->record.atmosphere), sizeof(broadcast_atmosphere_t), BROADCAST_TYPE_NORMAL(BROADCAST_TYPE_ATMOSPHERE) ); }
+  if ( standard ) { broadcast_append ( standard, &(beacon->record.temperature), sizeof(broadcast_temperature_t), BROADCAST_TYPE_NORMAL(BROADCAST_TYPE_TEMPERATURE) ); }
+
+  // Note: ignore handling for now
+  // if ( standard ) { broadcast_append ( standard, &(beacon->record.handling), sizeof(broadcast_handling_t), BROADCAST_TYPE_NORMAL(BROADCAST_TYPE_HANDLING) ); }
+
+  // Add the broadcast packet to the scan data.
+
+  if ( scan && standard ) { softble_advertisement_append ( scan, BLE_GAP_AD_TYPE_SERVICE_DATA, standard, broadcast_length ( standard ) + sizeof(short) ); }
+
+  // If there is new advertising broadcast data, update the bluetooth
+  // stack with the new broadcast.
+
+  if ( scan ) {
+
+    // Update the BLE stack with the new advertising packet.
+
+    if ( NRF_SUCCESS == softble_advertisement_packet ( NULL, scan ) ) { ctl_events_set ( &(beacon->status), BEACON_STATE_PACKET ); }
+    else { ctl_events_clear ( &(beacon->status), BEACON_STATE_PACKET ); }
+
+    // Free the the old advertising packet.
+
+    free ( beacon->advertisement.data );
+    free ( beacon->advertisement.scan );
+
+    }
+
+  // Update the resource with the new advertisement records.
+
+  beacon->advertisement.data      = NULL;
+  beacon->advertisement.scan      = scan;
+
+  // Discard the broadcast packet scratch buffers.
+
+  free ( standard );
+
+  }

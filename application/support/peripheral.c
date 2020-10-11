@@ -15,7 +15,7 @@
 #include  "peripheral.h"
 
 //=============================================================================
-// SECTION :
+// SECTION : CONNECTABLE PERIPHERAL MANAGER
 //=============================================================================
 
 //-----------------------------------------------------------------------------
@@ -81,6 +81,7 @@ unsigned peripheral_begin ( float interval, float period, signed char power ) {
     peripheral->broadcast.flags       = period
                                       ? BLE_GAP_ADV_FLAGS_LE_ONLY_LIMITED_DISC_MODE
                                       : BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE;
+
     peripheral->broadcast.power       = power;
 
     ctl_events_set_clear ( &(peripheral->status), PERIPHERAL_EVENT_BEGIN, PERIPHERAL_CLEAR_BEGIN );

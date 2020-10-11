@@ -72,7 +72,7 @@ unsigned application_configure ( application_t * application, unsigned options )
 
     if ( NRF_SUCCESS == application_bluetooth ( application ) ) {
 
-      if ( NRF_SUCCESS == beacon_start ( BEACON_BROADCAST_PROFILE ) ) {
+      if ( NRF_SUCCESS == beacon_start ( BEACON_BROADCAST_VARIANT ) ) {
 
         beacon_notice ( BEACON_NOTICE_INSPECTED, &(application->status), APPLICATION_EVENT_PROBED );
 
@@ -103,8 +103,8 @@ unsigned application_configure ( application_t * application, unsigned options )
 
   if ( application->option & PLATFORM_OPTION_POWER ) {
 
-    power_notice ( POWER_NOTICE_CHARGER, &(application->status), APPLICATION_EVENT_CHARGER );
     power_notice ( POWER_NOTICE_BATTERY, &(application->status), APPLICATION_EVENT_BATTERY );
+    power_notice ( POWER_NOTICE_CHARGER, &(application->status), APPLICATION_EVENT_CHARGER );
 
     #ifndef DEBUG
     power_warmup ( STARTING_BATTERY_THRESHOLD );
@@ -193,18 +193,14 @@ unsigned application_bluetooth ( application_t * application ) {
   if ( NRF_SUCCESS == result ) { result = information_register ( application->hardware.make, application->hardware.model, application->hardware.version ); }
   if ( NRF_SUCCESS == result ) {
 
-    char *                   firmware = malloc ( INFORMATION_REVISION_LIMIT + 1 );
+    char                   firmware [ INFORMATION_REVISION_LIMIT + 1 ];
+    
+    if ( (application->firmware.code != (unsigned)(-1)) ) {
 
-    if ( firmware ) {
-
-      if ( application->firmware.code < (unsigned)(-1) ) { snprintf ( firmware, INFORMATION_REVISION_LIMIT, "%s %u.%u", APPLICATION_NAME, application->firmware.major, application->firmware.minor ); }
-      else { strncpy ( firmware, APPLICATION_NAME, INFORMATION_REVISION_LIMIT ); }
-
+      snprintf ( firmware, INFORMATION_REVISION_LIMIT + 1, "%s %u.%u", APPLICATION_NAME, application->firmware.major, application->firmware.minor );
       information_firmware ( firmware );
 
       }
-
-    free ( firmware );
 
     }
 
@@ -370,8 +366,12 @@ void application_periodic ( application_t * application ) {
   if ( NRF_SUCCESS == beacon_state ( &(active) ) ) { if ( active ) return; }
 
   // If the tracking window is open, the beacon should be running.
+  // NOTE: we are assuming a 4x beacon for now
 
-  if ( application->settings.tracking.time.opened && ! application->settings.tracking.time.closed ) { beacon_begin ( BEACON_BROADCAST_RATE, BEACON_BROADCAST_PERIOD, BEACON_BROADCAST_POWER ); return; }
+  if ( application->settings.tracking.time.opened && ! application->settings.tracking.time.closed ) {
+    beacon_begin ( BEACON_BROADCAST_RATE, BEACON_BROADCAST_PERIOD, BEACON_BROADCAST_POWER, BEACON_TYPE_BLE_4 );
+    return;
+    }
 
   // As long as the system is not currently charging or charged, it is
   // safe to shut down.
@@ -390,6 +390,10 @@ void application_periodic ( application_t * application ) {
 void application_schedule ( application_t * application ) {
 
   // NOTE: this is triggered by the tick( ) callback
+
+  #ifdef DEBUG
+  debug_printf ( "\r\nHeap: %i", ctl_heap_remaining ( ) );
+  #endif
 
   }
 
@@ -561,11 +565,13 @@ void application_detach ( application_t * application ) {
   movement_begin ( application->settings.telemetry.interval );
 
   // If the tracking window is open, activate the telemetry beacon.
+  // NOTE: we are assuming a 4x beacon for now
 
   if ( application->settings.tracking.time.opened ) {
 
-    if ( ! application->settings.tracking.time.closed ) { beacon_begin ( BEACON_BROADCAST_RATE, BEACON_BROADCAST_PERIOD, BEACON_BROADCAST_POWER ); }
-    else { beacon_cease ( ); }
+    if ( ! application->settings.tracking.time.closed ) {
+      beacon_begin ( BEACON_BROADCAST_RATE, BEACON_BROADCAST_PERIOD, BEACON_BROADCAST_POWER, BEACON_TYPE_BLE_4 );
+      } else { beacon_cease ( ); }
 
     }
 
@@ -717,9 +723,6 @@ void application_telemetry ( application_t * application ) {
 
   if ( NRF_SUCCESS == sensors_atmosphere ( &(atmosphere.temperature), &(atmosphere.humidity), &(atmosphere.pressure) ) ) {
     
-    // NOTE: temporary
-    atmosphere.pressure = application->battery.voltage;
-
     atmosphere_measured ( &(atmosphere) );
 
     beacon_ambient ( atmosphere.temperature, application->compliance.ambient.incursion, application->compliance.ambient.excursion );

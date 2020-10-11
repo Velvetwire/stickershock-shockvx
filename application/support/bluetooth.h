@@ -54,8 +54,25 @@
 // SECTION : BLUETOOTH BEACON
 //=============================================================================
 
+#define   BEACON_BROADCAST_VARIANT    (0x5678)                                  // Default Variant "Vx"
+
 //-----------------------------------------------------------------------------
-// Bluetooth beacon service
+// Beacon broadcast can be either BLE 4.x or BLE 5.x compliant.
+//-----------------------------------------------------------------------------
+
+typedef   enum {
+
+          BEACON_TYPE_BLE_4,                                                    // Use BLE 4.x compliant beacon broadcast (31 byte data and 31 byte scan packets)
+          BEACON_TYPE_BLE_5,                                                    // Use BLE 5.x compliant beacon broadcast (255 byte scan packet)
+
+          } beacon_type_t;
+
+          unsigned                    beacon_start ( unsigned short variant );
+          unsigned                    beacon_state ( bool * active );
+          unsigned                    beacon_close ( void );
+
+//-----------------------------------------------------------------------------
+// Beacon broadcast settings.
 //
 // Note: iOS recommends (20ms, 152.5ms, 211.25ms, 318.75ms, 417.5ms, 546.25ms,
 //       760ms, 852.5ms, 1022.5ms, 1285ms)
@@ -64,13 +81,13 @@
 #define   BEACON_BROADCAST_RATE       ((float) 1285e-3)                         // Broadcast at 1285ms rate
 #define   BEACON_BROADCAST_POWER      (0)                                       // Broadcast at 0 db
 #define   BEACON_BROADCAST_PERIOD     ((float) 0)                               // Broadcast indefinitely
-#define   BEACON_BROADCAST_PROFILE    (0x5678)                                  // Broadcast profile code
 
-          unsigned                    beacon_start ( unsigned short variant );
-          unsigned                    beacon_state ( bool * active );
-          unsigned                    beacon_begin ( float interval, float period, signed char power );
+          unsigned                    beacon_begin ( float interval, float period, signed char power, beacon_type_t type );
           unsigned                    beacon_cease ( void );
-          unsigned                    beacon_close ( void );
+
+//-----------------------------------------------------------------------------
+// Beacon event notices
+//-----------------------------------------------------------------------------
 
 typedef   enum {                                                                // Service notices:
           BEACON_NOTICE_ADVERTISE,                                              //  Advertising started
@@ -81,13 +98,25 @@ typedef   enum {                                                                
 
           unsigned                    beacon_notice ( beacon_notice_t notice, CTL_EVENT_SET_t * set, CTL_EVENT_SET_t events );
 
+//-----------------------------------------------------------------------------
+// Beacon device information
+//-----------------------------------------------------------------------------
+
           unsigned                    beacon_network ( void * node );
           unsigned                    beacon_battery ( signed char battery );
+
+//-----------------------------------------------------------------------------
+// Beacon telemetry
+//-----------------------------------------------------------------------------
 
           unsigned                    beacon_surface ( float measurement, unsigned incursion, unsigned excursion );
           unsigned                    beacon_ambient ( float measurement, unsigned incursion, unsigned excursion );
           unsigned                    beacon_humidity ( float measurement, unsigned incursion, unsigned excursion );
           unsigned                    beacon_pressure ( float measurement, unsigned incursion, unsigned excursion );
+
+//-----------------------------------------------------------------------------
+// Beacon orientation and handling
+//-----------------------------------------------------------------------------
 
           unsigned                    beacon_orientation ( float angle, unsigned char orientation );
           unsigned                    beacon_misoriented ( void );
@@ -102,7 +131,15 @@ typedef   enum {                                                                
 //=============================================================================
 
 //-----------------------------------------------------------------------------
-// Bluetooth peripheral service
+// Connectable bluetooth peripheral
+//-----------------------------------------------------------------------------
+
+          unsigned                    peripheral_start ( void );
+          unsigned                    peripheral_state ( bool * active, bool * linked );
+          unsigned                    peripheral_close ( void );
+
+//-----------------------------------------------------------------------------
+// Bluetooth peripheral settings
 //
 // Note: iOS recommends (20ms, 152.5ms, 211.25ms, 318.75ms, 417.5ms, 546.25ms,
 //       760ms, 852.5ms, 1022.5ms, 1285ms)
@@ -112,11 +149,12 @@ typedef   enum {                                                                
 #define   PERIPHERAL_BROADCAST_POWER  (0)                                       // Broadcast at 0 db
 #define   PERIPHERAL_BROADCAST_PERIOD (float) 60                                // Broadcast for one minute
 
-          unsigned                    peripheral_start ( void );
-          unsigned                    peripheral_state ( bool * active, bool * linked );
           unsigned                    peripheral_begin ( float interval, float period, signed char power );
           unsigned                    peripheral_cease ( void );
-          unsigned                    peripheral_close ( void );
+
+//-----------------------------------------------------------------------------
+// Peripheral event notices
+//-----------------------------------------------------------------------------
 
 typedef   enum {                                                                // Service notices:
           PERIPHERAL_NOTICE_ADVERTISE,                                          //  Advertising started
@@ -128,6 +166,11 @@ typedef   enum {                                                                
           } peripheral_notice_t;
 
           unsigned                    peripheral_notice ( peripheral_notice_t notice, CTL_EVENT_SET_t * set, CTL_EVENT_SET_t events );
+
+
+//=============================================================================
+// SECTION : BLUETOOTH GATT SERVICES
+//=============================================================================
 
 //-----------------------------------------------------------------------------
 // Device control GATT service
@@ -202,6 +245,7 @@ typedef   struct {
           unsigned                    handling_observed ( handling_values_t * values );
 
 //-----------------------------------------------------------------------------
+// NOTE: to be deprecated...
 //-----------------------------------------------------------------------------
 
 #define   RECORD_DATA_LIMIT           (255)                                     // Maximum record data size

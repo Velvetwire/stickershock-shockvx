@@ -42,9 +42,9 @@ typedef   struct {
 
             unsigned char             flags;                                    //  Advertisement flags
             signed char               power;                                    //  Power settings
-            
-            unsigned short            code;
 
+            beacon_type_t             type;                                     //  Beacon type (4x or 5x)
+            
             } broadcast;
 
           struct {                                                              // Peripheral advertisement:
@@ -107,6 +107,20 @@ static    void                        beacon_inspected ( beacon_t * beacon );
 #define   BEACON_EVENT_BEGIN          (BEACON_EVENT_CONFIGURE | BEACON_EVENT_CONSTRUCT | BEACON_EVENT_BROADCAST)
 #define   BEACON_CLEAR_BEGIN          (BEACON_EVENT_ADVERTISE | BEACON_EVENT_TERMINATE | BEACON_STATE_PERIOD | BEACON_STATE_PACKET | BEACON_STATE_ACTIVE)
 #define   BEACON_CLEAR_CEASE          (BEACON_STATE_PACKET)
+
+//-----------------------------------------------------------------------------
+// Beacon support for 4.x or 5.x advertisement broadcast configuration.
+//-----------------------------------------------------------------------------
+
+static    void                        beacon_configure_ble_4 ( beacon_t * beacon );
+static    void                        beacon_configure_ble_5 ( beacon_t * beacon );
+
+//-----------------------------------------------------------------------------
+// Beacon support for 4.x or 5.x advertisement packet construction.
+//-----------------------------------------------------------------------------
+
+static    void                        beacon_construct_ble_4 ( beacon_t * beacon );
+static    void                        beacon_construct_ble_5 ( beacon_t * beacon );
 
 //=============================================================================
 #endif

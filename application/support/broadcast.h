@@ -17,9 +17,13 @@
 //=============================================================================
 
 //-----------------------------------------------------------------------------
+// For bluetooth 5.x, large packets can be broadcast using just the standard
+// code. For blueooth 4.x, packets can be split between the standard and the
+// extended code.
 //-----------------------------------------------------------------------------
 
-#define   BROADCAST_PACKET_CODE       0x5657                                    // Manufacturer code 'VW'
+#define   BROADCAST_STANDARD_CODE     0x5657                                    // Standard service broadcast code 'VW'
+#define   BROADCAST_EXTENDED_CODE     0x5658                                    // Extended service broadcast code 'VX'
 
 //-----------------------------------------------------------------------------
 // Broadcast packet data is encoded within a service data record using the same
@@ -67,26 +71,35 @@ typedef   struct __attribute__ (( packed )) {                                   
 //-----------------------------------------------------------------------------
 
 #define   BROADCAST_TYPE_IDENTITY     0x01                                      // Identity code
-#define   BROADCAST_SIZE_IDENTITY     (sizeof(broadcast_identity_t) + 1)
 
 typedef   struct __attribute__ (( packed )) {                                   // Broadcast identity record:
 
           unsigned                    timecode;                                 //  Unit secure time-code nonce
 
           hash_t                      identity;                                 //  Identity code (64-bit)
-          hash_t                      security;                                 //  Security hash (64-bit ignored if not secure)
 
           signed char                 horizon;                                  //  Signal horizon (standard dB at 1 meter)
           signed char                 battery;                                  //  Battery level (negative = charging)
 
           } broadcast_identity_t;
 
+typedef   struct __attribute__ (( packed )) {                                   // Broadcast identity record:
+
+          unsigned                    timecode;                                 //  Unit secure time-code nonce
+
+          hash_t                      identity;                                 //  Identity code (64-bit)
+          hash_t                      security;                                 //  Security hash (64-bit)
+
+          signed char                 horizon;                                  //  Signal horizon (standard dB at 1 meter)
+          signed char                 battery;                                  //  Battery level (negative = charging)
+
+          } broadcast_security_t;
+
 //-----------------------------------------------------------------------------
 // The broadcast network notifies observers of the sub-network of the device.
 //-----------------------------------------------------------------------------
 
 #define   BROADCAST_TYPE_NETWORK      0x03                                      // Network code
-#define   BROADCAST_SIZE_NETWORK      (sizeof(broadcast_network_t) + 1)
 
 typedef   struct __attribute__ (( packed )) {                                   // Broadcast network record:
 
@@ -99,7 +112,6 @@ typedef   struct __attribute__ (( packed )) {                                   
 //-----------------------------------------------------------------------------
 
 #define   BROADCAST_TYPE_TIMECODE     0x05
-#define   BROADCAST_SIZE_TIMECODE     (sizeof(broadcast_timecode_t) + 1)
 
 typedef   struct __attribute__ (( packed )) {                                   // Broadcast time record:
 
@@ -112,7 +124,6 @@ typedef   struct __attribute__ (( packed )) {                                   
 //-----------------------------------------------------------------------------
 
 #define   BROADCAST_TYPE_VARIANT      0x07
-#define   BROADCAST_SIZE_VARIANT      (sizeof(broadcast_variant_t) + 1)
 
 typedef   struct __attribute__ (( packed )) {                                   // Broadcast variant record:
 
@@ -131,8 +142,13 @@ typedef   struct __attribute__ (( packed )) {                                   
 //-----------------------------------------------------------------------------
 
 #define   BROADCAST_TYPE_POSITION     0x11
-#define   BROADCAST_SIZE_POSITION_2D  ((2 * sizeof(float)) + 1)
-#define   BROADCAST_SIZE_POSITION_3D  ((3 * sizeof(float)) + 1)
+
+typedef   struct __attribute__ (( packed )) {                                   // Broadcast position record:
+
+          float                       latitude;                                 //  Latitudinal position (in degrees)
+          float                       longitude;                                //  Longitudinal position (in degrees)
+
+          } broadcast_position_2d_t;
 
 typedef   struct __attribute__ (( packed )) {                                   // Broadcast position record:
 
@@ -140,14 +156,13 @@ typedef   struct __attribute__ (( packed )) {                                   
           float                       longitude;                                //  Longitudinal position (in degrees)
           float                       altitude;                                 //  Altitude (in meters. 3D only)
 
-          } broadcast_position_t;
+          } broadcast_position_3d_t;
 
 //-----------------------------------------------------------------------------
 // The broadcast location describes a fixed installation.
 //-----------------------------------------------------------------------------
 
 #define   BROADCAST_TYPE_LOCATION     0x13
-#define   BROADCAST_SIZE_LOCATION     (sizeof(broadcast_location_t) + 1)
 
 typedef   struct __attribute__ (( packed )) {                                   // Broadcast location record:
 
@@ -164,7 +179,6 @@ typedef   struct __attribute__ (( packed )) {                                   
 //-----------------------------------------------------------------------------
 
 #define   BROADCAST_TYPE_COORDINATE   0x15
-#define   BROADCAST_SIZE_COORDINATE   (sizeof(broadcast_coordinate_t) + 1)
 
 typedef   struct __attribute__ (( packed )) {                                   // Broadcast coordinate record:
 
@@ -184,7 +198,6 @@ typedef   struct __attribute__ (( packed )) {                                   
 //-----------------------------------------------------------------------------
 
 #define   BROADCAST_TYPE_TEMPERATURE  0x21
-#define   BROADCAST_SIZE_TEMPERATURE  (sizeof(broadcast_temperature_t) + 1)
 
 typedef   struct __attribute__ (( packed )) {                                   // Broadcast measurement record:
 
@@ -201,7 +214,6 @@ typedef   broadcast_measurement_t     broadcast_temperature_t;                  
 //-----------------------------------------------------------------------------
 
 #define   BROADCAST_TYPE_ATMOSPHERE   0x23
-#define   BROADCAST_SIZE_ATMOSPHERE   (sizeof(broadcast_atmosphere_t) + 1)
 
 typedef   struct __attribute__ (( packed )) {                                   // Broadcast atmosphere record:
 
@@ -221,7 +233,6 @@ typedef   struct __attribute__ (( packed )) {                                   
 //-----------------------------------------------------------------------------
 
 #define   BROADCAST_TYPE_HANDLING     0x31
-#define   BROADCAST_SIZE_HANDLING     (sizeof(broadcast_handling_t) + 1)
 
 typedef   struct __attribute__ (( packed )) {                                   // Broadcast handling record:
 

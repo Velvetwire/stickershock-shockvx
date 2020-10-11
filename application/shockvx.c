@@ -129,7 +129,9 @@ void tick ( CTL_TIME_t time ) {
 
   if ( application.status & APPLICATION_STATE_CHANGED ) { ctl_events_set ( &(application.status), APPLICATION_EVENT_SETTINGS ); }
 
-  //ctl_events_set ( &(application.status), APPLICATION_EVENT_SCHEDULE );
+  // 1024 -> 17 minutes
+
+  if ( (time & 15) == 15 ) { ctl_events_set ( &(application.status), APPLICATION_EVENT_SCHEDULE ); }
 
   }
 
