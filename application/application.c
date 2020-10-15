@@ -38,7 +38,7 @@ unsigned application_configure ( application_t * application, unsigned options )
   application_settings_t *   defaults = memset ( &(application->settings), 0, sizeof(application_settings_t) );
 
   defaults->telemetry.interval        = TELEMETRY_DEFAULT_INTERVAL;
-  defaults->telemetry.archival        = ARCHIVE_DEFAULT_INTERVAL;
+  defaults->telemetry.archival        = TELEMETRY_ARCHIVE_INTERVAL;
 
   defaults->handling.limit.face       = MOTION_ORIENTATION_FACEUP;
 
@@ -119,7 +119,9 @@ unsigned application_configure ( application_t * application, unsigned options )
     if ( NRF_SUCCESS == sensors_start ( application->option ) ) {
 
       sensors_notice ( SENSORS_NOTICE_TELEMETRY, &(application->status), APPLICATION_EVENT_TELEMETRY );
-      sensors_begin ( application->settings.telemetry.interval );
+      sensors_notice ( SENSORS_NOTICE_ARCHIVE, &(application->status), APPLICATION_EVENT_ARCHIVE );
+
+      sensors_begin ( application->settings.telemetry.interval, application->settings.telemetry.archival );
 
       }
 
@@ -197,7 +199,7 @@ unsigned application_bluetooth ( application_t * application ) {
     
     if ( (application->firmware.code != (unsigned)(-1)) ) {
 
-      snprintf ( firmware, INFORMATION_REVISION_LIMIT + 1, "%s %u.%u", APPLICATION_NAME, application->firmware.major, application->firmware.minor );
+      snprintf ( firmware, INFORMATION_REVISION_LIMIT + 1, "%s %u.%02u", APPLICATION_NAME, application->firmware.major, application->firmware.minor );
       information_firmware ( firmware );
 
       }
@@ -483,7 +485,7 @@ void application_tagged ( application_t * application ) {
     // and not currently linked, start broadcasting.
 
     if ( NRF_SUCCESS == beacon_state ( &(active) ) && (active) ) { beacon_cease ( ); }
-    if ( NRF_SUCCESS == peripheral_state ( &(active), &(linked) ) && !(active) && !(linked) ) {
+    if ( NRF_SUCCESS == peripheral_state ( &(active), &(linked) ) && !(linked) ) {
 
       peripheral_begin ( PERIPHERAL_BROADCAST_RATE, PERIPHERAL_BROADCAST_PERIOD, PERIPHERAL_BROADCAST_POWER );
 
@@ -503,12 +505,12 @@ void application_tagged ( application_t * application ) {
 void application_attach ( application_t * application ) {
 
   // Update the tracking window in the control service and switch the telemetry
-  // rate to the connected setting.
+  // rate to the connected interval setting.
 
   control_window ( application->settings.tracking.time.opened, application->settings.tracking.time.closed );
 
+  sensors_begin ( TELEMETRY_SERVICE_INTERVAL, application->settings.telemetry.archival );
   movement_begin ( TELEMETRY_SERVICE_INTERVAL );
-  sensors_begin ( TELEMETRY_SERVICE_INTERVAL );
 
   // Raise the connected state and lower the nominal and problem states.
 
@@ -555,7 +557,7 @@ void application_detach ( application_t * application ) {
   telemetry_settings ( &(application->settings.telemetry.interval), &(application->settings.telemetry.archival) );
   atmosphere_settings ( &(application->settings.atmosphere.lower), &(application->settings.atmosphere.upper) );
 
-  sensors_begin ( application->settings.telemetry.interval );
+  sensors_begin ( application->settings.telemetry.interval, application->settings.telemetry.archival );
 
   // Set the movement limits and the update interval to the new settings.
 
@@ -678,8 +680,8 @@ void application_charger ( application_t * application ) {
 
 void application_battery ( application_t * application ) {
 
-  if ( NRF_SUCCESS == power_levels ( &(application->battery.percent), &(application->battery.voltage), NULL ) ) {
-
+  if ( NRF_SUCCESS == power_estimate ( &(application->battery.percent), &(application->battery.voltage) ) ) {
+  
     // NOTE: disable the critical alarm for now
 
     #if 0
@@ -709,15 +711,6 @@ void application_battery ( application_t * application ) {
 void application_telemetry ( application_t * application ) {
 
   atmosphere_values_t      atmosphere = { 0 };
-  float                   temperature = 0;
-
-  if ( NRF_SUCCESS == sensors_temperature ( &(temperature) ) ) {
-
-    surface_measured ( temperature );
-
-    beacon_surface ( temperature, application->compliance.surface.incursion, application->compliance.surface.excursion );
-
-    }
 
   // Capture the telemetry values and update the telemetry service characteristics.
 
@@ -781,6 +774,32 @@ void application_telemetry ( application_t * application ) {
   }
 
 //-----------------------------------------------------------------------------
+//  function: application_archive ( application )
+// arguments: application - application resource
+//
+// Handle a notice that the an update to the telemetry archives is needed
+//-----------------------------------------------------------------------------
+
+void application_archive ( application_t * application ) {
+
+  // Archiving only occurs while the tracking window is open.
+
+  if ( ! application->settings.tracking.time.opened ) return;
+  if ( application->settings.tracking.time.closed ) return;
+
+  // Archive the atmospherics and the surface temperature.
+
+  atmosphere_archive ( );
+  surface_archive ( );
+
+  }
+
+
+//=============================================================================
+// SECTION : MOVEMENT RELATED EVENTS
+//=============================================================================
+
+//-----------------------------------------------------------------------------
 //  function: application_handling ( application )
 // arguments: application - application resource
 //
@@ -790,22 +809,23 @@ void application_telemetry ( application_t * application ) {
 void application_handling ( application_t * application ) {
 
   handling_values_t          handling = { 0 };
+  float                   temperature = 0;
 
   // Capture the motion values and update the handling service characteristics.
 
   if ( (NRF_SUCCESS == movement_angles ( &(handling.angle), &(handling.face) ))
-    && (NRF_SUCCESS == movement_forces ( &(handling.force), NULL, NULL, NULL )) ) { handling_observed ( &(handling) ); } else return;
+    && (NRF_SUCCESS == movement_forces ( &(handling.force), NULL, NULL, NULL )) ) { handling_observed ( &(handling) ); }
+
+  // Capture the surface temperature using the motion unit.
+
+  if ( NRF_SUCCESS == motion_temperature ( &(temperature) ) ) { surface_measured ( temperature ); }
 
   // Update the beacon angle and orientation face.
 
+  beacon_surface ( temperature, application->compliance.surface.incursion, application->compliance.surface.excursion );
   beacon_orientation ( handling.angle, handling.face );
 
   }
-
-
-//=============================================================================
-// SECTION : MOVEMENT RELATED EVENTS
-//=============================================================================
 
 //-----------------------------------------------------------------------------
 //  function: application_oriented ( application )
@@ -824,7 +844,6 @@ void application_oriented ( application_t * application ) {
       && (application->settings.handling.limit.face != orientation) ) { /* */ }
 
     }
-
 
 #if 0
   handling_values_t          handling = { 0 };

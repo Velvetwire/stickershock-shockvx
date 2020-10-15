@@ -72,6 +72,9 @@ unsigned atmosphere_register ( atmosphere_values_t * lower, atmosphere_values_t 
     if ( NRF_SUCCESS == result ) { result = atmosphere_lower_characteristic ( atmosphere ); }
     if ( NRF_SUCCESS == result ) { result = atmosphere_upper_characteristic ( atmosphere ); }
 
+    if ( NRF_SUCCESS == result ) { result = atmosphere_event_characteristic ( atmosphere ); }
+    if ( NRF_SUCCESS == result ) { result = atmosphere_count_characteristic ( atmosphere ); }
+
     } else return ( NRF_ERROR_RESOURCES );
 
   // Request a subcription to the soft device event publisher.
@@ -118,7 +121,7 @@ unsigned atmosphere_measured ( atmosphere_values_t * values ) {
   atmosphere_t *           atmosphere = &(resource);
   unsigned                     result = NRF_SUCCESS;
 
-  // Make sure that the requested notice is valid and register the notice.
+  // Make sure that the service has been registered with the stack.
 
   if ( atmosphere->service != BLE_GATT_HANDLE_INVALID ) { ctl_mutex_lock_uc ( &(atmosphere->mutex) ); }
   else return ( NRF_ERROR_INVALID_STATE );
@@ -132,6 +135,55 @@ unsigned atmosphere_measured ( atmosphere_values_t * values ) {
     if ( NRF_SUCCESS == (result = softble_characteristic_update ( handle, values, 0, sizeof(atmosphere_values_t) )) ) { result = softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL ); }
     
     } else { result = NRF_ERROR_NULL; }
+
+  // Return with the result.
+
+  return ( ctl_mutex_unlock ( &(atmosphere->mutex) ), result );
+
+  }
+
+//-----------------------------------------------------------------------------
+//  function: atmosphere_archive ( )
+// arguments: none
+//   returns: NRF_SUCCESS - if update issued
+//            NRF_ERROR_INVALID_STATE - if service is not registered
+//
+// Request that the current values be recorded as an event in the archive.
+//-----------------------------------------------------------------------------
+
+unsigned atmosphere_archive ( void ) {
+
+  atmosphere_t *           atmosphere = &(resource);
+  unsigned                     result = NRF_SUCCESS;
+  
+  // Make sure that the service has been registered with the stack.
+
+  if ( atmosphere->service != BLE_GATT_HANDLE_INVALID ) { ctl_mutex_lock_uc ( &(atmosphere->mutex) ); }
+  else return ( NRF_ERROR_INVALID_STATE );
+
+  // Open the archive and append an event record based on the values in
+  // measurement characteristic.
+
+  file_handle_t               archive = file_open ( ATMOSPHERE_ARCHIVE, FILE_MODE_CREATE | FILE_MODE_WRITE | FILE_MODE_READ );
+
+  if ( archive > FILE_OK ) {
+    
+    atmosphere_record_t        record = { .time = ctl_time_get ( ) };
+    unsigned short             handle = atmosphere->handle.count.value_handle;
+    unsigned short              count = (unsigned short) (file_tail ( archive ) / sizeof(atmosphere_record_t));
+
+    record.data.temperature           = (short) roundf ( atmosphere->value.value.temperature * 1e2 );
+    record.data.humidity              = (short) roundf ( atmosphere->value.value.humidity * 1e4 );
+    record.data.pressure              = (short) roundf ( atmosphere->value.value.pressure * 1e3 );
+
+    if ( sizeof(atmosphere_record_t) == file_write ( archive, &(record), sizeof(atmosphere_record_t) ) ) { ++ count; }
+    else { result = NRF_ERROR_NO_MEM; }
+
+    if ( NRF_SUCCESS == (result = softble_characteristic_update ( handle, &(count), 0, sizeof(short) )) ) { result = softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL ); }
+ 
+    file_close ( archive );
+
+    } else { result = NRF_ERROR_INTERNAL; }
 
   // Return with the result.
 
@@ -157,11 +209,38 @@ static unsigned atmosphere_event ( atmosphere_t * atmosphere, ble_evt_t * event 
   
   switch ( event->header.evt_id ) {
     
+    case BLE_GAP_EVT_CONNECTED:   return atmosphere_start ( atmosphere, event->evt.gap_evt.conn_handle, &(event->evt.gap_evt.params.connected) );
     case BLE_GATTS_EVT_WRITE:     return atmosphere_write ( atmosphere, event->evt.gatts_evt.conn_handle, &(event->evt.gatts_evt.params.write) );
 
     default:                      return ( NRF_SUCCESS );
 
     }
+
+  }
+
+//-----------------------------------------------------------------------------
+//  function: atmosphere_start ( atmosphere, connection, connected )
+// arguments: atmosphere - service resource
+//            connection - connection handle
+//            connected - connected information structure
+//   returns: NRF_SUCCESS if processed
+//
+// Connection to a peer has been established. Re-load the event count and reset
+// the event record characteristic.
+//-----------------------------------------------------------------------------
+
+static unsigned atmosphere_start ( atmosphere_t * atmosphere, unsigned short connection, ble_gap_evt_connected_t * connected ) {
+
+  file_handle_t               archive = file_open ( ATMOSPHERE_ARCHIVE, FILE_MODE_READ );
+  atmosphere_record_t          record = { 0 };
+  unsigned short                count = 0;
+
+  if ( archive > FILE_OK ) { count = file_size ( archive, NULL ) / sizeof(atmosphere_record_t); }
+
+  softble_characteristic_update ( atmosphere->handle.count.value_handle, &(count), 0, sizeof(short) );
+  softble_characteristic_update ( atmosphere->handle.event.value_handle, &(record), 0, 0 );
+
+  file_close ( archive );
 
   }
 
@@ -177,6 +256,10 @@ static unsigned atmosphere_event ( atmosphere_t * atmosphere, ble_evt_t * event 
 
 static unsigned atmosphere_write ( atmosphere_t * atmosphere, unsigned short connection, ble_gatts_evt_write_t * write ) {
 
+  // If this is a request to fetch an event record, process the request.
+
+  if ( (write->handle == atmosphere->handle.event.value_handle) && (write->len == sizeof(short)) ) { atmosphere_fetch ( atmosphere, *((unsigned short *) write->data) ); }
+
   // For protected characteristics, the write data needs to be transferred
   // directly to the value data.
 
@@ -186,6 +269,42 @@ static unsigned atmosphere_write ( atmosphere_t * atmosphere, unsigned short con
   // Write processed.
 
   return ( NRF_SUCCESS );
+
+  }
+
+//-----------------------------------------------------------------------------
+//  function: atmosphere_fetch ( atmosphere, index )
+// arguments: atmosphere - service resource
+//            inbdex - event record index
+//   returns: NRF_SUCCESS if successful
+//
+// Retrieve the event record from the archive and post it to the event
+// characteristic with notification.
+//-----------------------------------------------------------------------------
+
+static unsigned atmosphere_fetch ( atmosphere_t * atmosphere, unsigned short index ) {
+
+  file_handle_t               archive = file_open ( ATMOSPHERE_ARCHIVE, FILE_MODE_READ );
+  unsigned short               handle = atmosphere->handle.event.value_handle;
+  unsigned                     result = NRF_ERROR_NULL;
+
+  if ( archive > FILE_OK ) {
+   
+    atmosphere_record_t        record = { 0 };
+    int                        offset = sizeof(atmosphere_record_t) * index;
+
+    if ( (offset == file_seek ( archive, FILE_SEEK_POSITION, offset ))
+      && (sizeof(atmosphere_record_t) == file_read ( archive, &(record), sizeof(atmosphere_record_t) )) ) { result = NRF_SUCCESS; }
+
+    if ( (NRF_SUCCESS == result) && (NRF_SUCCESS == (result = softble_characteristic_update ( handle, &(record), 0, sizeof(atmosphere_record_t) ))) ) {
+      softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL );
+      }
+
+    file_close ( archive );
+
+    }
+
+  return ( result );
 
   }
 
@@ -257,5 +376,49 @@ static unsigned atmosphere_lower_characteristic ( atmosphere_t * atmosphere ) {
                                           .value    = &(atmosphere->value.lower) };
 
   return ( softble_characteristic_declare ( atmosphere->service, BLE_ATTR_PROTECTED | BLE_ATTR_WRITE | BLE_ATTR_READ, uuid, &(data) ) );
+
+  }
+
+//-----------------------------------------------------------------------------
+//  function: atmosphere_event_characteristic ( atmosphere )
+// arguments: atmosphere - service resource
+//   returns: NRF_ERROR_INVALID_PARAM - if parameters are invalid or missing
+//            NRF_SUCCESS - if added
+//
+// Register the archived event record characteristic. This is a read-write
+// value which represents a single archived record when read, and which will
+// fetch the given event record when written.
+//-----------------------------------------------------------------------------
+
+static unsigned atmosphere_event_characteristic ( atmosphere_t * atmosphere ) {
+
+  const void *                   uuid = atmosphere_id ( ATMOSPHERE_EVENT_UUID );
+  softble_characteristic_t       data = { .handles  = &(atmosphere->handle.event),
+                                          .limit    = sizeof(atmosphere_record_t),
+                                          .value    = &(atmosphere->value.event) };
+
+  return ( softble_characteristic_declare ( atmosphere->service, BLE_ATTR_PROTECTED | BLE_ATTR_VARIABLE | BLE_ATTR_NOTIFY | BLE_ATTR_WRITE | BLE_ATTR_READ, uuid, &(data) ) );
+
+  }
+
+//-----------------------------------------------------------------------------
+//  function: atmosphere_count_characteristic ( atmosphere )
+// arguments: atmosphere - service resource
+//   returns: NRF_ERROR_INVALID_PARAM - if parameters are invalid or missing
+//            NRF_SUCCESS - if added
+//
+// Register the archived event count characteristic. This is a read-only value
+// which indicates the count of archived events.
+//-----------------------------------------------------------------------------
+
+static unsigned atmosphere_count_characteristic ( atmosphere_t * atmosphere ) {
+
+  const void *                   uuid = atmosphere_id ( ATMOSPHERE_COUNT_UUID );
+  softble_characteristic_t       data = { .handles  = &(atmosphere->handle.count),
+                                          .length   = sizeof(short),
+                                          .limit    = sizeof(short),
+                                          .value    = &(atmosphere->value.count) };
+
+  return ( softble_characteristic_declare ( atmosphere->service, BLE_ATTR_PROTECTED | BLE_ATTR_NOTIFY | BLE_ATTR_READ, uuid, &(data) ) );
 
   }

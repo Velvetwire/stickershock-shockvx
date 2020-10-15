@@ -194,6 +194,7 @@ typedef   enum {                                                                
 // Sensor telemetry settings GATT service
 //-----------------------------------------------------------------------------
 
+#define   TELEMETRY_ARCHIVE_INTERVAL  ((float) 15.0 * 60.0)                     // Archive telemetry every 15 minutes
 #define   TELEMETRY_DEFAULT_INTERVAL  ((float) 15.0)                            // Collect telemetry every 15 seconds
 #define   TELEMETRY_SERVICE_INTERVAL  ((float) 2.5)                             // Every 2.5 seconds when connected
 
@@ -210,6 +211,8 @@ typedef   enum {                                                                
           unsigned                    surface_settings ( float * lower, float * upper );
           unsigned                    surface_measured ( float value );
 
+          unsigned                    surface_archive ( void );
+
 //-----------------------------------------------------------------------------
 // Atmospheric telemetry GATT service
 //-----------------------------------------------------------------------------
@@ -225,6 +228,8 @@ typedef   struct {
           unsigned                    atmosphere_register ( atmosphere_values_t * lower, atmosphere_values_t * upper );
           unsigned                    atmosphere_settings ( atmosphere_values_t * lower, atmosphere_values_t * upper );
           unsigned                    atmosphere_measured ( atmosphere_values_t * values );
+
+          unsigned                    atmosphere_archive ( void );
 
 //-----------------------------------------------------------------------------
 // Orientation and handling GATT service
@@ -243,30 +248,6 @@ typedef   struct {
           unsigned                    handling_register ( handling_values_t * limits );
           unsigned                    handling_settings ( handling_values_t * limits );
           unsigned                    handling_observed ( handling_values_t * values );
-
-//-----------------------------------------------------------------------------
-// NOTE: to be deprecated...
-//-----------------------------------------------------------------------------
-
-#define   RECORD_DATA_LIMIT           (255)                                     // Maximum record data size
-
-          const void *                records_uuid ( void );
-          unsigned                    records_register ( float interval );
-          unsigned                    records_settings ( float * interval );
-
-typedef   enum {                                                                // Service notices:
-          RECORDS_NOTICE_REQUEST,                                               //  record data requested
-          RECORDS_NOTICES
-          } records_notice_t;
-
-          unsigned                    records_notice ( records_notice_t notice, CTL_EVENT_SET_t * set, CTL_EVENT_SET_t events );
-
-typedef   struct __attribute__ (( packed )) {                                   // Records database cursor:
-
-          unsigned short              index;                                    //  record index
-          unsigned short              count;                                    //  record count
-
-          } records_cursor_t;
 
 //=============================================================================
 #endif

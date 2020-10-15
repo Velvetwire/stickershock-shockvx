@@ -17,8 +17,8 @@
 
 #define   BEACON_CLOSE_TIMEOUT        1000
 
-#define   BEACON_POWER_HORIZON        (-61)                                     // Horizon power estimate at 1m (assuming 0dB)
-#define   BEACON_POWER_MAXIMUM        (4)                                       // Maximum power setting is 4db
+#define   BEACON_POWER_HORIZON        (-63)                                     // Horizon power estimate at 1m (assuming 0dB)
+#define   BEACON_POWER_MAXIMUM        (4)                                       // Maximum power setting is 4db (maximum)
 
 #define   BEACON_INTERVAL_MINIMUM     ((float) 20e-3)                           // Minimum interval is 20ms
 

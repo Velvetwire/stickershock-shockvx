@@ -47,7 +47,7 @@ static const void *           surface_id ( unsigned service ) { static uuid_t id
 //   returns: NRF_ERROR_RESOURCES if no resources available
 //            NRF_SUCCESS if registered
 //
-// Register the atmospheric telemetry GATT service with the Bluetooth stack.
+// Register the surface temperature GATT service with the Bluetooth stack.
 //-----------------------------------------------------------------------------
 
 unsigned surface_register ( float lower, float upper ) {
@@ -68,6 +68,9 @@ unsigned surface_register ( float lower, float upper ) {
     if ( NRF_SUCCESS == result ) { result = surface_value_characteristic ( surface ); }
     if ( NRF_SUCCESS == result ) { result = surface_lower_characteristic ( surface, lower ); }
     if ( NRF_SUCCESS == result ) { result = surface_upper_characteristic ( surface, upper ); }
+
+    if ( NRF_SUCCESS == result ) { result = surface_event_characteristic ( surface ); }
+    if ( NRF_SUCCESS == result ) { result = surface_count_characteristic ( surface ); }
 
     } else return ( NRF_ERROR_RESOURCES );
 
@@ -132,6 +135,53 @@ unsigned surface_measured ( float value ) {
 
   }
 
+//-----------------------------------------------------------------------------
+//  function: surface_archive ( )
+// arguments: none
+//   returns: NRF_SUCCESS - if update issued
+//            NRF_ERROR_INVALID_STATE - if service is not registered
+//
+// Request that the current values be recorded as an event in the archive.
+//-----------------------------------------------------------------------------
+
+unsigned surface_archive ( void ) {
+
+  surface_t *                 surface = &(resource);
+  unsigned                     result = NRF_SUCCESS;
+  
+  // Make sure that the service has been registered with the stack.
+
+  if ( surface->service != BLE_GATT_HANDLE_INVALID ) { ctl_mutex_lock_uc ( &(surface->mutex) ); }
+  else return ( NRF_ERROR_INVALID_STATE );
+
+  // Open the archive and append an event record based on the values in
+  // measurement characteristic.
+
+  file_handle_t               archive = file_open ( SURFACE_ARCHIVE, FILE_MODE_CREATE | FILE_MODE_WRITE | FILE_MODE_READ );
+
+  if ( archive > FILE_OK ) {
+    
+    surface_record_t           record = { .time = ctl_time_get ( ) };
+    unsigned short             handle = surface->handle.count.value_handle;
+    unsigned short              count = (unsigned short) (file_tail ( archive ) / sizeof(surface_record_t));
+
+    record.data.temperature           = (short) roundf ( surface->value.value * 1e2 );
+
+    if ( sizeof(surface_record_t) == file_write ( archive, &(record), sizeof(surface_record_t) ) ) { ++ count; }
+    else { result = NRF_ERROR_NO_MEM; }
+
+    if ( NRF_SUCCESS == (result = softble_characteristic_update ( handle, &(count), 0, sizeof(short) )) ) { result = softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL ); }
+ 
+    file_close ( archive );
+
+    } else { result = NRF_ERROR_INTERNAL; }
+
+  // Return with the result.
+
+  return ( ctl_mutex_unlock ( &(surface->mutex) ), result );
+
+  }
+
 
 //=============================================================================
 // SECTION : SERVICE RESPONDER
@@ -150,11 +200,38 @@ static unsigned surface_event ( surface_t * surface, ble_evt_t * event ) {
   
   switch ( event->header.evt_id ) {
     
+    case BLE_GAP_EVT_CONNECTED:   return surface_start ( surface, event->evt.gap_evt.conn_handle, &(event->evt.gap_evt.params.connected) );
     case BLE_GATTS_EVT_WRITE:     return surface_write ( surface, event->evt.gatts_evt.conn_handle, &(event->evt.gatts_evt.params.write) );
 
     default:                      return ( NRF_SUCCESS );
 
     }
+
+  }
+
+//-----------------------------------------------------------------------------
+//  function: surface_connect ( surface, connection, connected )
+// arguments: surface - service resource
+//            connection - connection handle
+//            connected - connected information structure
+//   returns: NRF_SUCCESS if processed
+//
+// Connection to a peer has been established. Re-load the event count and reset
+// the event record characteristic.
+//-----------------------------------------------------------------------------
+
+static unsigned surface_start ( surface_t * surface, unsigned short connection, ble_gap_evt_connected_t * connected ) {
+
+  file_handle_t               archive = file_open ( SURFACE_ARCHIVE, FILE_MODE_READ );
+  surface_record_t             record = { 0 };
+  unsigned short                count = 0;
+
+  if ( archive > FILE_OK ) { count = file_size ( archive, NULL ) / sizeof(surface_record_t); }
+
+  softble_characteristic_update ( surface->handle.count.value_handle, &(count), 0, sizeof(short) );
+  softble_characteristic_update ( surface->handle.event.value_handle, &(record), 0, 0 );
+
+  file_close ( archive );
 
   }
 
@@ -170,6 +247,10 @@ static unsigned surface_event ( surface_t * surface, ble_evt_t * event ) {
 
 static unsigned surface_write ( surface_t * surface, unsigned short connection, ble_gatts_evt_write_t * write ) {
 
+  // If this is a request to fetch an event record, process the request.
+
+  if ( (write->handle == surface->handle.event.value_handle) && (write->len == sizeof(short)) ) { surface_fetch ( surface, *((unsigned short *) write->data) ); }
+
   // For protected characteristics, the write data needs to be transferred
   // directly to the value data.
 
@@ -179,6 +260,43 @@ static unsigned surface_write ( surface_t * surface, unsigned short connection, 
   // Write processed.
 
   return ( NRF_SUCCESS );
+
+  }
+
+
+//-----------------------------------------------------------------------------
+//  function: surface_fetch ( surface, index )
+// arguments: surface - service resource
+//            inbdex - event record index
+//   returns: NRF_SUCCESS if successful
+//
+// Retrieve the event record from the archive and post it to the event
+// characteristic with notification.
+//-----------------------------------------------------------------------------
+
+static unsigned surface_fetch ( surface_t * surface, unsigned short index ) {
+
+  file_handle_t               archive = file_open ( SURFACE_ARCHIVE, FILE_MODE_READ );
+  unsigned short               handle = surface->handle.event.value_handle;
+  unsigned                     result = NRF_ERROR_NULL;
+
+  if ( archive > FILE_OK ) {
+   
+    surface_record_t           record = { 0 };
+    int                        offset = sizeof(surface_record_t) * index;
+
+    if ( (offset == file_seek ( archive, FILE_SEEK_POSITION, offset ))
+      && (sizeof(surface_record_t) == file_read ( archive, &(record), sizeof(surface_record_t) )) ) { result = NRF_SUCCESS; }
+
+    if ( (NRF_SUCCESS == result) && (NRF_SUCCESS == (result = softble_characteristic_update ( handle, &(record), 0, sizeof(surface_record_t) ))) ) {
+      softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL );
+      }
+
+    file_close ( archive );
+
+    }
+
+  return ( result );
 
   }
 
@@ -256,5 +374,49 @@ static unsigned surface_lower_characteristic ( surface_t * surface, float value 
   surface->value.lower                = value;
 
   return ( softble_characteristic_declare ( surface->service, BLE_ATTR_PROTECTED | BLE_ATTR_WRITE | BLE_ATTR_READ, uuid, &(data) ) );
+
+  }
+
+//-----------------------------------------------------------------------------
+//  function: surface_event_characteristic ( surface )
+// arguments: surface - service resource
+//   returns: NRF_ERROR_INVALID_PARAM - if parameters are invalid or missing
+//            NRF_SUCCESS - if added
+//
+// Register the archived event record characteristic. This is a read-write
+// value which represents a single archived record when read, and which will
+// fetch the given event record when written.
+//-----------------------------------------------------------------------------
+
+static unsigned surface_event_characteristic ( surface_t * surface ) {
+
+  const void *                   uuid = surface_id ( SURFACE_EVENT_UUID );
+  softble_characteristic_t       data = { .handles  = &(surface->handle.event),
+                                          .limit    = sizeof(surface_record_t),
+                                          .value    = &(surface->value.event) };
+
+  return ( softble_characteristic_declare ( surface->service, BLE_ATTR_PROTECTED | BLE_ATTR_VARIABLE | BLE_ATTR_NOTIFY | BLE_ATTR_WRITE | BLE_ATTR_READ, uuid, &(data) ) );
+
+  }
+
+//-----------------------------------------------------------------------------
+//  function: surface_count_characteristic ( surface )
+// arguments: surface - service resource
+//   returns: NRF_ERROR_INVALID_PARAM - if parameters are invalid or missing
+//            NRF_SUCCESS - if added
+//
+// Register the archived event count characteristic. This is a read-only value
+// which indicates the count of archived events.
+//-----------------------------------------------------------------------------
+
+static unsigned surface_count_characteristic ( surface_t * surface ) {
+
+  const void *                   uuid = surface_id ( SURFACE_COUNT_UUID );
+  softble_characteristic_t       data = { .handles  = &(surface->handle.count),
+                                          .length   = sizeof(short),
+                                          .limit    = sizeof(short),
+                                          .value    = &(surface->value.count) };
+
+  return ( softble_characteristic_declare ( surface->service, BLE_ATTR_PROTECTED | BLE_ATTR_NOTIFY | BLE_ATTR_READ, uuid, &(data) ) );
 
   }

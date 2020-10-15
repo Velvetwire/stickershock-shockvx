@@ -88,10 +88,6 @@ unsigned peripheral_begin ( float interval, float period, signed char power ) {
 
     } else { result = NRF_ERROR_INVALID_PARAM; }
 
-  #ifdef DEBUG
-  debug_printf ( "\r\nPeripheral: (%f)", interval );
-  #endif
-
   // Free the resource and return with the result.
 
   return ( ctl_mutex_unlock ( &(peripheral->mutex) ), result );
@@ -118,10 +114,6 @@ unsigned peripheral_cease ( void ) {
   // Clear the state flags after ceasing.
 
   ctl_events_clear ( &(peripheral->status), PERIPHERAL_CLEAR_CEASE );
-
-  #ifdef DEBUG
-  debug_printf ( "\r\nPeripheral: off" );
-  #endif
 
   // Return with success
 
@@ -349,10 +341,6 @@ static void peripheral_advertise ( peripheral_t * peripheral ) {
   ctl_events_set ( &(peripheral->status), PERIPHERAL_STATE_ACTIVE );
   ctl_notice ( peripheral->notice + PERIPHERAL_NOTICE_ADVERTISE );
 
-  #ifdef DEBUG
-  debug_printf ( "\r\nPeripheral: advertise" );
-  #endif
-
   }
 
 //-----------------------------------------------------------------------------
@@ -362,10 +350,6 @@ static void peripheral_terminate ( peripheral_t * peripheral ) {
 
   ctl_events_clear ( &(peripheral->status), PERIPHERAL_STATE_ACTIVE );
   ctl_notice ( peripheral->notice + PERIPHERAL_NOTICE_TERMINATE );
-
-  #ifdef DEBUG
-  debug_printf ( "\r\nPeripheral: stopped" );
-  #endif
 
   }
 

@@ -102,10 +102,6 @@ unsigned beacon_begin ( float interval, float period, signed char power, beacon_
 
     } else { result = NRF_ERROR_INVALID_PARAM; }
 
-  #ifdef DEBUG
-  debug_printf ( "\r\nBeacon: (%f)", interval );
-  #endif
-
   // Free the resource and return with the result.
 
   return ( ctl_mutex_unlock ( &(beacon->mutex) ), result );
@@ -132,10 +128,6 @@ unsigned beacon_cease ( void ) {
   // Clear the state flags after ceasing.
 
   ctl_events_clear ( &(beacon->status), BEACON_CLEAR_CEASE );
-
-  #ifdef DEBUG
-  debug_printf ( "\r\nBeacon: off" );
-  #endif
 
   // Return with success
 
@@ -576,10 +568,6 @@ static void beacon_advertise ( beacon_t * beacon ) {
   ctl_events_set ( &(beacon->status), BEACON_STATE_ACTIVE );
   ctl_notice ( beacon->notice + BEACON_NOTICE_ADVERTISE );
 
-  #ifdef DEBUG
-  debug_printf ( "\r\nBeacon: advertise" );
-  #endif
-
   }
 
 //-----------------------------------------------------------------------------
@@ -589,10 +577,6 @@ static void beacon_terminate ( beacon_t * beacon ) {
 
   ctl_events_clear ( &(beacon->status), BEACON_STATE_ACTIVE );
   ctl_notice ( beacon->notice + BEACON_NOTICE_TERMINATE );
-
-  #ifdef DEBUG
-  debug_printf ( "\r\nBeacon: stopped" );
-  #endif
 
   }
 

@@ -15,12 +15,12 @@
 #include  "settings.h"
 
 //-----------------------------------------------------------------------------
-// Declare the default name to use for the application.
+// Declare the default name to use for the application and the path to the
+// application settings file.
 //-----------------------------------------------------------------------------
 
-#define   APPLICATION_NAME            "Shock Vx"
-#define   APPLICATION_FILE            "ShockVx.set"
-#define   APPLICATION_DATA            "Telemetry.rec"
+#define   APPLICATION_NAME            "ShockVx"                                 // Application name
+#define   APPLICATION_FILE            "internal:settings/shockvx.set"           // Application settings file
 
 //-----------------------------------------------------------------------------
 // Platform defaults to assume during intialization.
@@ -136,7 +136,9 @@ static    void                        application_lower ( application_t * applic
 // Application shutdown and deep sleep
 //-----------------------------------------------------------------------------
 
+#define   APPLICATION_STARTUP_DELAY   ((float) 1.0)
 #define   APPLICATION_SHUTDOWN_DELAY  ((float) 2.5)
+
 #define   APPLICATION_EVENT_SHUTDOWN  (1 << 30)
 
           void                        application_shutdown ( application_t * application );
@@ -217,21 +219,25 @@ typedef   enum {
 //-----------------------------------------------------------------------------
 
 #define   APPLICATION_EVENT_TELEMETRY (1 << 16)
-#define   APPLICATION_EVENT_HANDLING  (1 << 15)
+#define   APPLICATION_EVENT_ARCHIVE   (1 << 15)
 
           void                        application_telemetry ( application_t * application );
-          void                        application_handling ( application_t * application );
+          void                        application_archive ( application_t * application );
 
 //-----------------------------------------------------------------------------
 // Movement related events
 //-----------------------------------------------------------------------------
 
-#define   APPLICATION_EVENT_ORIENTED  (1 << 14)
-#define   APPLICATION_EVENT_STRESSED  (1 << 13)
-#define   APPLICATION_EVENT_DROPPED   (1 << 12)
-#define   APPLICATION_EVENT_TILTED    (1 << 11)
+#define   APPLICATION_EVENT_HANDLING  (1 << 14)
+#define   APPLICATION_EVENT_ORIENTED  (1 << 13)
 
+          void                        application_handling ( application_t * application );
           void                        application_oriented ( application_t * application );
+
+#define   APPLICATION_EVENT_STRESSED  (1 << 12)
+#define   APPLICATION_EVENT_DROPPED   (1 << 11)
+#define   APPLICATION_EVENT_TILTED    (1 << 10)
+
           void                        application_stressed ( application_t * application );
           void                        application_dropped ( application_t * application );
           void                        application_tilted ( application_t * application );

@@ -55,13 +55,11 @@
       <configuration Name="Common" filter="c;cpp;cxx;cc;h;s;asm;inc" />
       <file file_name="application/services/control.c" />
       <file file_name="application/services/handling.c" />
-      <file file_name="application/services/records.c" />
       <file file_name="application/services/telemetry.c" />
       <file file_name="application/services/atmosphere.c" />
       <file file_name="application/services/surface.c" />
     </folder>
     <folder Name="Application Modules">
-      <file file_name="application/modules/archive.c" />
       <file file_name="application/modules/sensors.c" />
       <file file_name="application/modules/movement.c" />
     </folder>

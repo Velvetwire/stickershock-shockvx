@@ -30,11 +30,17 @@ unsigned sensors_start ( unsigned option ) {
 
   sensors_t *                 sensors = &(resource);
 
+  // Make sure that the module has not already been started.
+
   if ( thread == NULL ) { ctl_mutex_init ( &(sensors->mutex) ); }
   else return ( NRF_ERROR_INVALID_STATE );
 
+  // Spawn the module daemon.
+
   if ( (thread = ctl_spawn ( "sensors", (CTL_TASK_ENTRY_t) sensors_manager, sensors, SENSORS_MANAGER_STACK, SENSORS_MANAGER_PRIORITY )) ) { sensors->option = option; }
   else return ( NRF_ERROR_NO_MEM );
+
+  // Module started.
 
   return ( NRF_SUCCESS );
 
@@ -43,7 +49,7 @@ unsigned sensors_start ( unsigned option ) {
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 
-unsigned sensors_begin ( float interval ) {
+unsigned sensors_begin ( float interval, float archival ) {
 
   sensors_t *                 sensors = &(resource);
   CTL_TIME_t                   period = (CTL_TIME_t) roundf ( interval * 1000.0 );
@@ -54,14 +60,19 @@ unsigned sensors_begin ( float interval ) {
   if ( thread ) { ctl_mutex_lock_uc ( &(sensors->mutex) ); }
   else return ( NRF_ERROR_INVALID_STATE );
 
-  // Start or cancel periodic telemetry.
+  // Clear any pending telemetry, update the period and request a settings
+  // refresh to re-start telemetry with the new period.
+  //
+  // Note: we also reset the archive window and elapsed time counter.
 
-  if ( (sensors->period = period) ) { ctl_events_set_clear ( &(sensors->status), SENSORS_EVENT_SETTINGS, SENSORS_EVENT_PERIODIC ); }
-  else { ctl_events_set_clear ( &(sensors->status), SENSORS_EVENT_STANDBY, SENSORS_EVENT_PERIODIC ); }
+  if ( (sensors->period = period) > SENSORS_PERIOD_MINIMUM ) {
+    
+    sensors->archive.window           = (CTL_TIME_t) roundf ( archival * 1000.0 );
+    sensors->archive.elapse           = (CTL_TIME_t) 0;
 
-  #ifdef DEBUG
-  debug_printf ( "\r\nSensors: (%f)", interval );
-  #endif
+    ctl_events_set_clear ( &(sensors->status), SENSORS_EVENT_SETTINGS, SENSORS_EVENT_PERIODIC );
+    
+    } else { result = NRF_ERROR_INVALID_PARAM; }
 
   // Free the resource and return with the result.
 
@@ -85,10 +96,6 @@ unsigned sensors_cease ( void ) {
   // Cancel periodic telemetry.
 
   ctl_events_set_clear ( &(sensors->status), SENSORS_EVENT_STANDBY, SENSORS_EVENT_PERIODIC );
-
-  #ifdef DEBUG
-  debug_printf ( "\r\nSensors: off" );
-  #endif
 
   // Free the resource and return with the result.
 
@@ -320,5 +327,16 @@ static void sensors_periodic ( sensors_t * sensors ) {
   // Issue a telemetry update notice
 
   ctl_notice ( sensors->notice + SENSORS_NOTICE_TELEMETRY );
+
+  // If there is an established archive window and the window has elapsed,
+  // issue an archival event.
+
+  if ( sensors->archive.window ) {
+
+    sensors->archive.elapse           = sensors->archive.elapse + sensors->period;
+    if ( sensors->archive.elapse >= sensors->archive.window ) { ctl_notice ( sensors->notice + SENSORS_NOTICE_ARCHIVE ); }
+    sensors->archive.elapse           = sensors->archive.elapse % sensors->archive.window;
+    
+    }
 
   }

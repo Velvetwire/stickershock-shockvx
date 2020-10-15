@@ -19,7 +19,7 @@
 //-----------------------------------------------------------------------------
 
           unsigned                    sensors_start ( unsigned option );
-          unsigned                    sensors_begin ( float interval );
+          unsigned                    sensors_begin ( float interval, float archival );
           unsigned                    sensors_cease ( void );
           unsigned                    sensors_close ( void );
 
@@ -28,6 +28,7 @@
 
 typedef   enum {                                                                // Module notices:
           SENSORS_NOTICE_TELEMETRY,                                             //  telemetry updated
+          SENSORS_NOTICE_ARCHIVE,                                               //  archive requested
           SENSORS_NOTICES
           } sensors_notice_t;
 
@@ -72,23 +73,6 @@ typedef   enum {                                                                
           unsigned                    movement_forces ( float * force, float * x, float * y, float * z );
           unsigned                    movement_angles ( float * angle, char * orientation );
           unsigned                    movement_limits ( float force, float angle );
-
-
-//=============================================================================
-// SECTION : ARCHIVE SERVICES
-//=============================================================================
-
-#define   ARCHIVE_DEFAULT_INTERVAL    ((float) (60*60))                         // Archive telemetry every 30 minutes
-
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-
-          unsigned                    archive_start ( const char * filename );
-          unsigned                    archive_begin ( float interval );
-          unsigned                    archive_cease ( void );
-          unsigned                    archive_close ( void );
-
-//          unsigned                    archive_telemetry ( telemetry_record_t * record, unsigned status );
 
 
 //=============================================================================

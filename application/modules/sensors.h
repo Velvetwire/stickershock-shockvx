@@ -34,6 +34,11 @@ typedef   struct {
 
           CTL_TIME_t                  period;                                   // Measurment period (milliseconds)
 
+          struct {                                                              // Archival settings:
+            CTL_TIME_t                window;                                   //  Archive window (milliseconds)
+            CTL_TIME_t                elapse;                                   //  Elapsed time since last event
+            } archive;
+
           struct {                                                              // Humidity sensor readings:
             float                     temperature;                              //  Ambient temperature
             float                     measurement;                              //  Humidity reading
@@ -70,8 +75,10 @@ static    void                        sensors_standby ( sensors_t * sensors );
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 
-#define   SENSORS_VALUE_HUMIDITY      (1 << 23)                                 // Humidity reading available
-#define   SENSORS_VALUE_PRESSURE      (1 << 22)                                 // Pressure reading available
+#define   SENSORS_VALUES_MEASURED     (SENSORS_VALUE_PRESSURE | SENSORS_VALUE_HUMIDITY | SENSORS_VALUE_AMBIENT | SENSORS_VALUE_STANDBY | SENSORS_VALUE_SURFACE)
+
+#define   SENSORS_VALUE_PRESSURE      (1 << 23)                                 // Pressure reading available
+#define   SENSORS_VALUE_HUMIDITY      (1 << 22)                                 // Humidity reading available
 #define   SENSORS_VALUE_AMBIENT       (1 << 21)                                 // Ambient temperature available
 #define   SENSORS_VALUE_STANDBY       (1 << 20)                                 // Standby temperature available
 #define   SENSORS_VALUE_SURFACE       (1 << 19)                                 // Surface temperature available
@@ -79,6 +86,7 @@ static    void                        sensors_standby ( sensors_t * sensors );
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 
+#define   SENSORS_PERIOD_MINIMUM      ((float) 1.0)                             // Minimum period is 1 second
 #define   SENSORS_EVENT_PERIODIC      (1 << 15)
 
 static    void                        sensors_periodic ( sensors_t * sensors );

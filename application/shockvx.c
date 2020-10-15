@@ -129,9 +129,9 @@ void tick ( CTL_TIME_t time ) {
 
   if ( application.status & APPLICATION_STATE_CHANGED ) { ctl_events_set ( &(application.status), APPLICATION_EVENT_SETTINGS ); }
 
-  // 1024 -> 17 minutes
+  // Trip the schedule event rougly every 17 minutes.
 
-  if ( (time & 15) == 15 ) { ctl_events_set ( &(application.status), APPLICATION_EVENT_SCHEDULE ); }
+  if ( (time & 1023) == 15 ) { ctl_events_set ( &(application.status), APPLICATION_EVENT_SCHEDULE ); }
 
   }
 
@@ -192,6 +192,11 @@ void fail ( unsigned condition ) {
 
 void main ( application_t * application ) {
 
+  // Wait a moment for things to settle.
+  // NOTE: is this really needed?
+
+  ctl_delay ( APPLICATION_STARTUP_DELAY );
+
   // Configure the application options and set the default application status.
 
   ctl_events_init ( &(application->status), application_configure ( application, APPLICATION_OPTIONS_DEFAULT | PLATFORM_OPTIONS_DEFAULT ) );
@@ -241,13 +246,14 @@ void main ( application_t * application ) {
     if ( status & APPLICATION_EVENT_STROBE ) { application_strobe ( application ); }
     if ( status & APPLICATION_EVENT_CANCEL ) { application_cancel ( application ); }
 
-    // Periodic telemetry and handling events.
+    // Periodic telemetry and archiving events.
 
     if ( status & APPLICATION_EVENT_TELEMETRY ) { application_telemetry ( application ); }
-    if ( status & APPLICATION_EVENT_HANDLING ) { application_handling ( application ); }
+    if ( status & APPLICATION_EVENT_ARCHIVE ) { application_archive( application ); }
     
     // Movement related events.
 
+    if ( status & APPLICATION_EVENT_HANDLING ) { application_handling ( application ); }
     if ( status & APPLICATION_EVENT_ORIENTED ) { application_oriented ( application ); }
     if ( status & APPLICATION_EVENT_STRESSED ) { application_stressed ( application ); }
     if ( status & APPLICATION_EVENT_DROPPED ) { application_dropped ( application ); }
@@ -271,7 +277,16 @@ void main ( application_t * application ) {
 
   }
 
+
+//=============================================================================
+// SECTION : FAULT TRAP
+//=============================================================================
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
 #ifdef DEBUG
+
 void ctl_handle_error ( CTL_ERROR_CODE_t error ) {
 
   CTL_TASK_t *  task = ctl_task_executing;
@@ -279,4 +294,5 @@ void ctl_handle_error ( CTL_ERROR_CODE_t error ) {
   debug_break ( );
 
   }
+
 #endif

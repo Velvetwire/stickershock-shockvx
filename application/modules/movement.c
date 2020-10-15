@@ -30,11 +30,17 @@ unsigned movement_start ( unsigned option ) {
 
   movement_t *               movement = &(resource);
 
+  // Make sure that the module has not already been started.
+
   if ( thread == NULL ) { ctl_mutex_init ( &(movement->mutex) ); }
   else return ( NRF_ERROR_INVALID_STATE );
 
+  // Spawn the module daemon.
+
   if ( (thread = ctl_spawn ( "movement", (CTL_TASK_ENTRY_t) movement_manager, movement, MOVEMENT_MANAGER_STACK, MOVEMENT_MANAGER_PRIORITY )) ) { movement->option = option; }
   else return ( NRF_ERROR_NO_MEM );
+
+  // Module started.
 
   return ( NRF_SUCCESS );
 
@@ -59,10 +65,6 @@ unsigned movement_begin ( float interval ) {
   if ( (movement->period = period) ) { ctl_events_set_clear ( &(movement->status), MOVEMENT_EVENT_SETTINGS, MOVEMENT_EVENT_PERIODIC ); }
   else { ctl_events_set_clear ( &(movement->status), MOVEMENT_EVENT_STANDBY, MOVEMENT_EVENT_PERIODIC ); }
 
-  #ifdef DEBUG
-  debug_printf ( "\r\nMovement: (%f)", interval );
-  #endif
-
   // Free the resource and return with the result.
 
   return ( ctl_mutex_unlock ( &(movement->mutex) ), result );
@@ -85,10 +87,6 @@ unsigned movement_cease ( void ) {
   // Cancel periodic telemetry.
 
   ctl_events_set_clear ( &(movement->status), MOVEMENT_EVENT_STANDBY, MOVEMENT_EVENT_PERIODIC );
-
-  #ifdef DEBUG
-  debug_printf ( "\r\nMovement: off" );
-  #endif
 
   // Free the resource and return with the result.
 
@@ -319,22 +317,17 @@ static void movement_shutdown ( movement_t * movement ) {
 
 static void movement_settings ( movement_t * movement ) {
 
-  // If the motion sensor option is enabled, calibrate the surface sensor
-  // using the on-chip die temperature as the reference. Enable notices
+  // If the motion sensor option is enabled, register for notices
   // from the sensor for orientation change, activity, free-fall and
-  // updated vectors.
+  // updated vectors. Get the initial orientation.
 
   if ( movement->option & PLATFORM_OPTION_MOTION ) {
   
-    float                 temperature = 0;
-
     motion_linear ( MOTION_RATE_50HZ, MOTION_RANGE_16G );
-    //motion_linear ( MOTION_RATE_100HZ, MOTION_RANGE_16G );
     motion_options ( MOTION_OPTION_TEMPERATURE | MOTION_OPTION_VECTORS | MOTION_OPTION_FREEFALL );
+    
+    // Request wake-up on activity.
 
-    // Calibrate the temperature to the CPU temperature and request activity wakeup.
-
-    if ( NRF_SUCCESS == softdevice_temperature ( &(temperature) ) ) { motion_calibration ( temperature ); }
     if ( NRF_SUCCESS == motion_wakeup ( 0.25, 0.1, 0.0 ) ) { ctl_events_clear ( &(movement->status), MOVEMENT_STATE_ACTIVITY ); }
 
     // Set up the notices in which we are interested.
@@ -349,8 +342,28 @@ static void movement_settings ( movement_t * movement ) {
 
     motion_orientation ( &(movement->orientation) );
 
-    }
+    } else return;
 
+  // Retrieve the current atmospheric temperature settings and use these to
+  // calibrate the offset of the surface temperature measurement.
+  //
+  // Note: this presumes that the surface temperature and the air temperature
+  // of the device are essentially equivalent at start up.
+
+  if ( movement->option & PLATFORM_OPTION_PRESSURE ) {
+
+    float                     ambient = 0;
+
+    if ( NRF_SUCCESS == pressure_measurement ( NULL, &(ambient) )  ) { motion_calibration ( ambient ); }
+
+    } else if ( movement->option & PLATFORM_OPTION_HUMIDITY ) {
+
+    float                     ambient = 0;
+
+    if ( NRF_SUCCESS == humidity_measurement ( NULL, &(ambient) ) ) { motion_calibration ( ambient ); }
+
+    } 
+  
   // Start the periodic timer.
 
   ctl_timer_start ( CTL_TIMER_CYCLICAL, &(movement->status), MOVEMENT_EVENT_PERIODIC, movement->period );
@@ -377,6 +390,10 @@ static void movement_standby ( movement_t * movement ) {
 //-----------------------------------------------------------------------------
 
 static void movement_periodic ( movement_t * movement ) {
+
+  // Retrieve the latest temperature reading from the motion sensor.
+
+  motion_temperature ( &(movement->temperature) );
 
   // Issue a movement update notice
 
