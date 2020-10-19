@@ -136,7 +136,6 @@ static    void                        application_lower ( application_t * applic
 // Application shutdown and deep sleep
 //-----------------------------------------------------------------------------
 
-#define   APPLICATION_STARTUP_DELAY   ((float) 1.0)
 #define   APPLICATION_SHUTDOWN_DELAY  ((float) 2.5)
 
 #define   APPLICATION_EVENT_SHUTDOWN  (1 << 30)
@@ -193,23 +192,35 @@ typedef   enum {
 #define   CRITICAL_BATTERY_THRESHOLD  ((float) 3.50)                            // Critical battery alert level
 
 //-----------------------------------------------------------------------------
+// System summary status check and update.
+//-----------------------------------------------------------------------------
+
+#define   APPLICATION_EVENT_SUMMARY   (1 << 23)                                 // Summary status update
+
+          void                        application_summary ( application_t * application );
+
+//-----------------------------------------------------------------------------
 // Communication events.
 //-----------------------------------------------------------------------------
 
-#define   APPLICATION_EVENT_TAGGED    (1 << 23)                                 // Near field tag has been scanned
-#define   APPLICATION_EVENT_ATTACH    (1 << 22)                                 // BLE peripheral has attached
-#define   APPLICATION_EVENT_DETACH    (1 << 21)                                 // BLE connection has detached
-#define   APPLICATION_EVENT_PROBED    (1 << 20)                                 // Scan response has been probed
-#define   APPLICATION_EVENT_EXPIRE    (1 << 19)                                 // Advertisement expired
+#define   APPLICATION_TAG_DELAY       (256)                                     // Short 256ms delay after NFC tagged
+
+#define   APPLICATION_EVENT_TAGGED    (1 << 22)                                 // Near field tag has been scanned
 
           void                        application_tagged ( application_t * application );
+
+#define   APPLICATION_EVENT_ATTACH    (1 << 21)                                 // BLE peripheral has attached
+#define   APPLICATION_EVENT_DETACH    (1 << 20)                                 // BLE connection has detached
+#define   APPLICATION_EVENT_PROBED    (1 << 19)                                 // Scan response has been probed
+#define   APPLICATION_EVENT_EXPIRE    (1 << 18)                                 // Advertisement expired
+
           void                        application_attach ( application_t * application );
           void                        application_detach ( application_t * application );
           void                        application_probed ( application_t * application );
           void                        application_expire ( application_t * application );
 
-#define   APPLICATION_EVENT_STROBE    (1 << 18)
-#define   APPLICATION_EVENT_CANCEL    (1 << 17)
+#define   APPLICATION_EVENT_STROBE    (1 << 17)
+#define   APPLICATION_EVENT_CANCEL    (1 << 16)
 
           void                        application_strobe ( application_t * application );
           void                        application_cancel ( application_t * application );
@@ -218,8 +229,8 @@ typedef   enum {
 // Periodic telemetry and handling updates
 //-----------------------------------------------------------------------------
 
-#define   APPLICATION_EVENT_TELEMETRY (1 << 16)
-#define   APPLICATION_EVENT_ARCHIVE   (1 << 15)
+#define   APPLICATION_EVENT_TELEMETRY (1 << 15)
+#define   APPLICATION_EVENT_ARCHIVE   (1 << 14)
 
           void                        application_telemetry ( application_t * application );
           void                        application_archive ( application_t * application );
@@ -228,15 +239,15 @@ typedef   enum {
 // Movement related events
 //-----------------------------------------------------------------------------
 
-#define   APPLICATION_EVENT_HANDLING  (1 << 14)
-#define   APPLICATION_EVENT_ORIENTED  (1 << 13)
+#define   APPLICATION_EVENT_HANDLING  (1 << 13)
+#define   APPLICATION_EVENT_ORIENTED  (1 << 12)
 
           void                        application_handling ( application_t * application );
           void                        application_oriented ( application_t * application );
 
-#define   APPLICATION_EVENT_STRESSED  (1 << 12)
-#define   APPLICATION_EVENT_DROPPED   (1 << 11)
-#define   APPLICATION_EVENT_TILTED    (1 << 10)
+#define   APPLICATION_EVENT_STRESSED  (1 << 10)
+#define   APPLICATION_EVENT_DROPPED   (1 << 8)
+#define   APPLICATION_EVENT_TILTED    (1 << 8)
 
           void                        application_stressed ( application_t * application );
           void                        application_dropped ( application_t * application );

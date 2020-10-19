@@ -172,13 +172,12 @@ unsigned sensors_temperature ( float * temperature ) {
   if ( thread ) { ctl_mutex_lock_uc ( &(sensors->mutex) ); }
   else return ( NRF_ERROR_INVALID_STATE );
   
-  // Retrieve the telemetry measurements and populate the given structure.
+  if ( temperature ) {
+    
+    if ( sensors->status & SENSORS_VALUE_SURFACE ) { *(temperature) = sensors->surface.temperature; }
+    else { result = NRF_ERROR_NOT_FOUND; }
 
-  if ( sensors->status & (SENSORS_VALUE_SURFACE | SENSORS_VALUE_AMBIENT | SENSORS_VALUE_HUMIDITY | SENSORS_VALUE_PRESSURE) ) {
-
-    if ( temperature ) { *(temperature) = sensors->surface.temperature; }
-
-    } else { result = NRF_ERROR_NULL; }
+    }
 
   // Free the resource and return with result.
 
@@ -199,16 +198,26 @@ unsigned sensors_atmosphere ( float * temperature, float * humidity, float * pre
   if ( thread ) { ctl_mutex_lock_uc ( &(sensors->mutex) ); }
   else return ( NRF_ERROR_INVALID_STATE );
   
-  // Retrieve the telemetry measurements and populate the given structure.
+  if ( temperature ) {
 
-  if ( sensors->status & (SENSORS_VALUE_SURFACE | SENSORS_VALUE_AMBIENT | SENSORS_VALUE_HUMIDITY | SENSORS_VALUE_PRESSURE) ) {
+    if ( sensors->status & SENSORS_VALUE_AMBIENT ) { *(temperature) = sensors->humidity.temperature; }
+    else { result = NRF_ERROR_NOT_FOUND; }
 
-    if ( temperature ) { *(temperature) = sensors->humidity.temperature; }
+    }
 
-    if ( humidity ) { *(humidity) = sensors->humidity.measurement; }
-    if ( pressure ) { *(pressure) = sensors->pressure.measurement; }
+  if ( humidity ) {
 
-    } else { result = NRF_ERROR_NULL; }
+    if ( sensors->status & SENSORS_VALUE_HUMIDITY ) { *(humidity) = sensors->humidity.measurement; }
+    else { result = NRF_ERROR_NOT_FOUND; }
+
+    }
+
+  if ( pressure ) {
+
+    if ( sensors->status & SENSORS_VALUE_PRESSURE ) { *(pressure) = sensors->pressure.measurement; }
+    else { result = NRF_ERROR_NOT_FOUND; }
+
+    }
 
   // Free the resource and return with result.
 
@@ -306,10 +315,10 @@ static void sensors_periodic ( sensors_t * sensors ) {
     if ( NRF_SUCCESS == humidity_measurement ( &(sensors->humidity.measurement), &(sensors->humidity.temperature) ) ) { sensors->status |= (SENSORS_VALUE_HUMIDITY | SENSORS_VALUE_AMBIENT); }
     else { sensors->status &= ~(SENSORS_VALUE_HUMIDITY | SENSORS_VALUE_AMBIENT); }
 
-    if ( (sensors->surface.temperature < -20.0) && (sensors->humidity.temperature > 20.0) ) {
+    if ( (sensors->surface.temperature < ((float) - 20.0) && (sensors->humidity.temperature > ((float) 60.0))) ) {
 
-      sensors->humidity.temperature = sensors->humidity.temperature - 175.72;
-      sensors->humidity.measurement = sensors->humidity.measurement * 0.5;
+      sensors->humidity.temperature = sensors->humidity.temperature - ((float) 175.72);
+      sensors->humidity.measurement = sensors->humidity.measurement * ((float) 0.5);
 
       }
 

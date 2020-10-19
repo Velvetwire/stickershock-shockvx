@@ -119,7 +119,8 @@ unsigned atmosphere_settings ( atmosphere_values_t * lower, atmosphere_values_t 
 unsigned atmosphere_measured ( atmosphere_values_t * values ) {
 
   atmosphere_t *           atmosphere = &(resource);
-  unsigned                     result = NRF_SUCCESS;
+
+  if ( ! values ) return ( NRF_ERROR_NULL );
 
   // Make sure that the service has been registered with the stack.
 
@@ -128,13 +129,10 @@ unsigned atmosphere_measured ( atmosphere_values_t * values ) {
 
   // Update the metrics values structure and issue a notify to any connected peers.
 
-  if ( values ) {
-
-    unsigned short             handle = atmosphere->handle.value.value_handle;
-
-    if ( NRF_SUCCESS == (result = softble_characteristic_update ( handle, values, 0, sizeof(atmosphere_values_t) )) ) { result = softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL ); }
+  unsigned short               handle = atmosphere->handle.value.value_handle;
+  unsigned                     result = softble_characteristic_update ( handle, values, 0, sizeof(atmosphere_values_t) );
     
-    } else { result = NRF_ERROR_NULL; }
+  if ( NRF_SUCCESS == result ) { softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL ); }
 
   // Return with the result.
 
@@ -179,7 +177,9 @@ unsigned atmosphere_archive ( void ) {
     if ( sizeof(atmosphere_record_t) == file_write ( archive, &(record), sizeof(atmosphere_record_t) ) ) { ++ count; }
     else { result = NRF_ERROR_NO_MEM; }
 
-    if ( NRF_SUCCESS == (result = softble_characteristic_update ( handle, &(count), 0, sizeof(short) )) ) { result = softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL ); }
+    if ( NRF_SUCCESS == (result = softble_characteristic_update ( handle, &(count), 0, sizeof(short) )) ) {
+      softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL );
+      }
  
     file_close ( archive );
 

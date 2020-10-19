@@ -106,7 +106,7 @@ static    void                        beacon_inspected ( beacon_t * beacon );
 
 #define   BEACON_EVENT_BEGIN          (BEACON_EVENT_CONFIGURE | BEACON_EVENT_CONSTRUCT | BEACON_EVENT_BROADCAST)
 #define   BEACON_CLEAR_BEGIN          (BEACON_EVENT_ADVERTISE | BEACON_EVENT_TERMINATE | BEACON_STATE_PERIOD | BEACON_STATE_PACKET | BEACON_STATE_ACTIVE)
-#define   BEACON_CLEAR_CEASE          (BEACON_STATE_PACKET)
+#define   BEACON_CLEAR_CEASE          (BEACON_STATE_PACKET | BEACON_STATE_ACTIVE)
 
 //-----------------------------------------------------------------------------
 // Beacon support for 4.x or 5.x advertisement broadcast configuration.

@@ -192,15 +192,24 @@ void fail ( unsigned condition ) {
 
 void main ( application_t * application ) {
 
-  // Wait a moment for things to settle.
-  // NOTE: is this really needed?
-
-  ctl_delay ( APPLICATION_STARTUP_DELAY );
-
   // Configure the application options and set the default application status.
 
   ctl_events_init ( &(application->status), application_configure ( application, APPLICATION_OPTIONS_DEFAULT | PLATFORM_OPTIONS_DEFAULT ) );
-  ctl_timer_start ( CTL_TIMER_CYCLICAL, &(application->status), APPLICATION_EVENT_PERIODIC, (CTL_TIME_t) roundf( APPLICATION_PERIOD  * 1000.0 ) );
+  ctl_timer_start ( CTL_TIMER_CYCLICAL, &(application->status), APPLICATION_EVENT_PERIODIC | APPLICATION_EVENT_SUMMARY, (CTL_TIME_t) roundf( APPLICATION_PERIOD  * 1000.0 ) );
+
+  // Before starting the application logic loop, say hello with the indicator.
+  // Note: the indicator will be green if all sensors are up and running. It
+  //       will be red otherwise.
+
+  if ( application->option & PLATFORM_OPTION_INDICATE ) { 
+
+    if ( (application->option & PLATFORM_SENSORS_DEFAULT) == PLATFORM_SENSORS_DEFAULT ) { indicator_color ( (float) 0, (float) 1, (float) 0 ); }
+    else { indicator_color ( (float) 1, (float) 0, (float) 0 ); }
+
+    ctl_delay ( 1.0 );
+    indicator_off ( );
+
+    }
 
   // Wait for application events and pass each event to the appropriate
   // application logic handler.
@@ -233,6 +242,10 @@ void main ( application_t * application ) {
     if ( status & APPLICATION_EVENT_CHARGER ) { application_charger ( application ); }
     if ( status & APPLICATION_EVENT_BATTERY ) { application_battery ( application ); }
 
+    // System status summary update.
+
+    if ( status & APPLICATION_EVENT_SUMMARY ) { application_summary ( application ); }
+
     // NFC scanning and peripheral connection events.
 
     if ( status & APPLICATION_EVENT_TAGGED ) { application_tagged ( application ); }
@@ -255,6 +268,7 @@ void main ( application_t * application ) {
 
     if ( status & APPLICATION_EVENT_HANDLING ) { application_handling ( application ); }
     if ( status & APPLICATION_EVENT_ORIENTED ) { application_oriented ( application ); }
+
     if ( status & APPLICATION_EVENT_STRESSED ) { application_stressed ( application ); }
     if ( status & APPLICATION_EVENT_DROPPED ) { application_dropped ( application ); }
     if ( status & APPLICATION_EVENT_TILTED ) { application_tilted ( application ); }

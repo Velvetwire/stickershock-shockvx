@@ -90,7 +90,7 @@ static    void                        peripheral_inspected ( peripheral_t * peri
 
 #define   PERIPHERAL_EVENT_BEGIN      (PERIPHERAL_EVENT_CONFIGURE | PERIPHERAL_EVENT_CONSTRUCT | PERIPHERAL_EVENT_BROADCAST)
 #define   PERIPHERAL_CLEAR_BEGIN      (PERIPHERAL_EVENT_ADVERTISE | PERIPHERAL_EVENT_TERMINATE | PERIPHERAL_STATE_PERIOD | PERIPHERAL_STATE_PACKET | PERIPHERAL_STATE_ACTIVE)
-#define   PERIPHERAL_CLEAR_CEASE      (PERIPHERAL_STATE_PACKET)
+#define   PERIPHERAL_CLEAR_CEASE      (PERIPHERAL_STATE_PACKET | PERIPHERAL_STATE_ACTIVE)
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------

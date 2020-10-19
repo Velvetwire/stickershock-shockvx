@@ -323,10 +323,11 @@ static void movement_settings ( movement_t * movement ) {
 
   if ( movement->option & PLATFORM_OPTION_MOTION ) {
   
-    motion_linear ( MOTION_RATE_50HZ, MOTION_RANGE_16G );
     motion_options ( MOTION_OPTION_TEMPERATURE | MOTION_OPTION_VECTORS | MOTION_OPTION_FREEFALL );
+    motion_linear ( MOTION_RATE_50HZ, MOTION_RANGE_16G );
     
-    // Request wake-up on activity.
+    // Request wake-up on activity. This will put the motion unit into sleep
+    // at its lowest frequency whenever inactivity is detected.
 
     if ( NRF_SUCCESS == motion_wakeup ( 0.25, 0.1, 0.0 ) ) { ctl_events_clear ( &(movement->status), MOVEMENT_STATE_ACTIVITY ); }
 
@@ -397,7 +398,7 @@ static void movement_periodic ( movement_t * movement ) {
 
   // Issue a movement update notice
 
-  ctl_notice ( movement->notice + MOVEMENT_NOTICE_MOVEMENT );
+  ctl_notice ( movement->notice + MOVEMENT_NOTICE_PERIODIC );
 
   }
 

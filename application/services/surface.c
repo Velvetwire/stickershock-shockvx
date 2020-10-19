@@ -116,7 +116,6 @@ unsigned surface_settings ( float * lower, float * upper ) {
 unsigned surface_measured ( float value ) {
 
   surface_t *                 surface = &(resource);
-  unsigned                     result = NRF_SUCCESS;
 
   // Make sure that the requested notice is valid and register the notice.
 
@@ -126,8 +125,9 @@ unsigned surface_measured ( float value ) {
   // Update the metrics values structure and issue a notify to any connected peers.
 
   unsigned short               handle = surface->handle.value.value_handle;
+  unsigned                     result = softble_characteristic_update ( handle, &(value), 0, sizeof(float) );
 
-  if ( NRF_SUCCESS == (result = softble_characteristic_update ( handle, &(value), 0, sizeof(float) )) ) { result = softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL ); }
+  if ( NRF_SUCCESS == result ) { softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL ); }
 
   // Return with the result.
 
@@ -170,7 +170,9 @@ unsigned surface_archive ( void ) {
     if ( sizeof(surface_record_t) == file_write ( archive, &(record), sizeof(surface_record_t) ) ) { ++ count; }
     else { result = NRF_ERROR_NO_MEM; }
 
-    if ( NRF_SUCCESS == (result = softble_characteristic_update ( handle, &(count), 0, sizeof(short) )) ) { result = softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL ); }
+    if ( NRF_SUCCESS == (result = softble_characteristic_update ( handle, &(count), 0, sizeof(short) )) ) {
+      softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL );
+      }
  
     file_close ( archive );
 

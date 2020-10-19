@@ -31,7 +31,7 @@
 unsigned application_configure ( application_t * application, unsigned options ) {
 
   application->option                 = platform_options ( options );
-  CTL_EVENT_SET_t              status = APPLICATION_EVENT_CHARGER | APPLICATION_EVENT_BATTERY;
+  CTL_EVENT_SET_t              status = APPLICATION_EVENT_SUMMARY;
 
   // Configure the settings default to reasonable values.
 
@@ -101,6 +101,7 @@ unsigned application_configure ( application_t * application, unsigned options )
   // If the power monitor is enabled, make sure that the battery has
   // reached minimum warm-up power and then register to receive notices.
 
+  if ( application->option & PLATFORM_OPTION_POWER ) { status |= APPLICATION_EVENT_CHARGER | APPLICATION_EVENT_BATTERY; }
   if ( application->option & PLATFORM_OPTION_POWER ) {
 
     power_notice ( POWER_NOTICE_BATTERY, &(application->status), APPLICATION_EVENT_BATTERY );
@@ -112,7 +113,8 @@ unsigned application_configure ( application_t * application, unsigned options )
 
     }
 
-  // If any of the telemetry sensors is enabled, start the periodic telemetry.
+  // If any of the environmental sensors is enabled, start the sensor module and
+  // register to receive periodic telemetry updates.
 
   if ( application->option & (PLATFORM_OPTION_PRESSURE | PLATFORM_OPTION_HUMIDITY) ) {
 
@@ -127,12 +129,16 @@ unsigned application_configure ( application_t * application, unsigned options )
 
     }
 
+  // If the motion sensor is enabled, start the movement tracking module and
+  // register to receive notices from the module for orientation change,
+  // periodic updates and various alerts, such as freefall and tilt.
+
   if ( application->option & PLATFORM_OPTION_MOTION ) {
-    
+
     if ( NRF_SUCCESS == movement_start ( application->option ) ) {
       
       movement_notice ( MOVEMENT_NOTICE_ORIENTATION, &(application->status), APPLICATION_EVENT_ORIENTED );
-      movement_notice ( MOVEMENT_NOTICE_MOVEMENT, &(application->status), APPLICATION_EVENT_HANDLING );
+      movement_notice ( MOVEMENT_NOTICE_PERIODIC, &(application->status), APPLICATION_EVENT_HANDLING );
 
       movement_notice ( MOVEMENT_NOTICE_FREEFALL, &(application->status), APPLICATION_EVENT_DROPPED );
       movement_notice ( MOVEMENT_NOTICE_STRESS, &(application->status), APPLICATION_EVENT_STRESSED );
@@ -181,7 +187,8 @@ unsigned application_bluetooth ( application_t * application ) {
 
     }
 
-  // Register the device control service and request identification notices.
+  // Register the device control service and request identification notices. Record the
+  // system status in the control status flags.
 
   if ( NRF_SUCCESS == result ) { result = control_register ( &(application->settings.tracking.node),
                                                              application->settings.tracking.lock,
@@ -199,7 +206,9 @@ unsigned application_bluetooth ( application_t * application ) {
     
     if ( (application->firmware.code != (unsigned)(-1)) ) {
 
-      snprintf ( firmware, INFORMATION_REVISION_LIMIT + 1, "%s %u.%02u", APPLICATION_NAME, application->firmware.major, application->firmware.minor );
+      snprintf ( firmware, INFORMATION_REVISION_LIMIT + 1, "%s %u.%02u (%u)", APPLICATION_NAME,
+                 application->firmware.major, application->firmware.minor, application->firmware.build );
+      
       information_firmware ( firmware );
 
       }
@@ -371,8 +380,10 @@ void application_periodic ( application_t * application ) {
   // NOTE: we are assuming a 4x beacon for now
 
   if ( application->settings.tracking.time.opened && ! application->settings.tracking.time.closed ) {
+
     beacon_begin ( BEACON_BROADCAST_RATE, BEACON_BROADCAST_PERIOD, BEACON_BROADCAST_POWER, BEACON_TYPE_BLE_4 );
     return;
+
     }
 
   // As long as the system is not currently charging or charged, it is
@@ -392,10 +403,6 @@ void application_periodic ( application_t * application ) {
 void application_schedule ( application_t * application ) {
 
   // NOTE: this is triggered by the tick( ) callback
-
-  #ifdef DEBUG
-  debug_printf ( "\r\nHeap: %i", ctl_heap_remaining ( ) );
-  #endif
 
   }
 
@@ -429,18 +436,19 @@ void application_indicate ( application_t * application ) {
   static application_indicate_t state = APPLICATION_INDICATE_NONE;
   application_indicate_t         mode = APPLICATION_INDICATE_NONE;
 
-  // Determine the appropriate indication mode from state bits.
+  // If the battery voltage is above the minimum threshold to indicate,
+  // determine the appropriate mode from the current status.
 
-  if ( application->status & APPLICATION_STATE_BLINKER ) { mode = APPLICATION_INDICATE_BLINKER; }
-  else if ( application->status & APPLICATION_STATE_CONNECT ) { mode = APPLICATION_INDICATE_CONNECT; }
-  else if ( application->status & APPLICATION_STATE_CHARGED ) { mode = APPLICATION_INDICATE_CHARGED; }
-  else if ( application->status & APPLICATION_STATE_CHARGER ) { mode = APPLICATION_INDICATE_CHARGER; }
-  else if ( application->status & APPLICATION_STATE_PROBLEM ) { mode = APPLICATION_INDICATE_PROBLEM; }
-  else if ( application->status & APPLICATION_STATE_BATTERY ) { mode = APPLICATION_INDICATE_BATTERY; }
+  if ( application->battery.voltage > INDICATE_BATTERY_THRESHOLD ) {
 
-  // If the battery is too low, disable the indicator.
+    if ( application->status & APPLICATION_STATE_BLINKER ) { mode = APPLICATION_INDICATE_BLINKER; }
+    else if ( application->status & APPLICATION_STATE_CONNECT ) { mode = APPLICATION_INDICATE_CONNECT; }
+    else if ( application->status & APPLICATION_STATE_CHARGED ) { mode = APPLICATION_INDICATE_CHARGED; }
+    else if ( application->status & APPLICATION_STATE_CHARGER ) { mode = APPLICATION_INDICATE_CHARGER; }
+    else if ( application->status & APPLICATION_STATE_PROBLEM ) { mode = APPLICATION_INDICATE_PROBLEM; }
+    else if ( application->status & APPLICATION_STATE_BATTERY ) { mode = APPLICATION_INDICATE_BATTERY; }
 
-  if ( application->battery.voltage < INDICATE_BATTERY_THRESHOLD ) { indicator_off ( ); return; }
+    } else { indicator_off ( ); }
 
   // If the indicator state has changed, update the indicator.
 
@@ -473,22 +481,23 @@ void application_indicate ( application_t * application ) {
 
 void application_tagged ( application_t * application ) {
 
+  bool                         active = false;
+  bool                         linked = false;
+
   // Whenever the NFC is tagged, switch the bluetooth profile from beacon to
   // peripheral.
 
   if ( application->option & APPLICATION_OPTION_BLE ) {
 
-    bool                       active = false;
-    bool                       linked = false;
-
-    // If the beacon is active, cease broadcasting. If the peripheral is inactive
-    // and not currently linked, start broadcasting.
-
     if ( NRF_SUCCESS == beacon_state ( &(active) ) && (active) ) { beacon_cease ( ); }
-    if ( NRF_SUCCESS == peripheral_state ( &(active), &(linked) ) && !(linked) ) {
+    if ( NRF_SUCCESS == peripheral_state ( &(active), &(linked) ) && !(active) && !(linked) ) { ctl_yield ( APPLICATION_TAG_DELAY ); }
+    else return;
 
-      peripheral_begin ( PERIPHERAL_BROADCAST_RATE, PERIPHERAL_BROADCAST_PERIOD, PERIPHERAL_BROADCAST_POWER );
-
+    if ( linked ) { peripheral_cease ( ); }
+    if ( NRF_SUCCESS == peripheral_begin ( PERIPHERAL_BROADCAST_RATE, PERIPHERAL_BROADCAST_PERIOD, PERIPHERAL_BROADCAST_POWER ) ) {
+      #ifdef DEBUG
+      debug_printf ( "\r\nPeripheral: tagged" );
+      #endif
       }
 
     }
@@ -682,17 +691,69 @@ void application_battery ( application_t * application ) {
 
   if ( NRF_SUCCESS == power_estimate ( &(application->battery.percent), &(application->battery.voltage) ) ) {
   
+    #ifdef DEBUG
+    debug_printf ( "\r\nBattery: %1.2f (%1.1f %%)", application->battery.voltage, application->battery.percent );
+    #endif
+
     // NOTE: disable the critical alarm for now
 
     #if 0
     if ( application->battery.voltage <= CRITICAL_BATTERY_THRESHOLD ) { application_raise ( application, APPLICATION_STATE_BATTERY ); }
     else { application_lower ( application, APPLICATION_STATE_BATTERY ); }
     #endif
+    
+    // Update the charge status.
 
     beacon_battery ( (char) roundf( application->battery.percent ) );
     battery_charge ( application->battery.percent );
 
     }
+
+  }
+
+
+//=============================================================================
+// SECTION : SYSTEM STATUS SUMMARY
+//=============================================================================
+
+//-----------------------------------------------------------------------------
+//  function: application_summary ( application )
+// arguments: application - application resource
+//
+// Update the system summary.
+//-----------------------------------------------------------------------------
+
+void application_summary ( application_t * application ) {
+
+  control_status_t             status = 0;
+  float                        memory = 0;
+  float                       storage = 0;
+  unsigned char                 index = 0;
+
+  // Update the status flags with the availability of the various sensor modules.
+
+  if ( application->option & PLATFORM_OPTION_MOTION ) { status |= (CONTROL_STATUS_MOVEMENT | CONTROL_STATUS_SURFACE); }
+  if ( application->option & PLATFORM_OPTION_HUMIDITY ) { status |= (CONTROL_STATUS_HUMIDITY | CONTROL_STATUS_AMBIENT); }
+  if ( application->option & PLATFORM_OPTION_PRESSURE ) { status |= (CONTROL_STATUS_PRESSURE); }
+
+  if ( storage_index ( APPLICATION_FILE, &(index) ) ) {
+    
+    unsigned                       heap = __HEAP_SIZE__;
+    storage_space_t               space = { 0 };
+
+    if ( heap ) { memory = (float) ctl_heap_remaining ( ) / (float) heap; }
+    if ( NRF_SUCCESS == storage_space ( index, &(space) ) ) { storage = (float) (space.size - space.used) / (float) space.size; } 
+
+    }
+
+  // Update the summary status characteristic in the control module.
+
+  if ( application->option & APPLICATION_OPTION_BLE ) { control_status ( status, memory, storage ); }
+
+  #ifdef DEBUG
+  debug_printf ( "\r\nSummary: memory %1.2f", memory );
+  debug_printf ( "\r\nSummary: storage %1.2f", storage );
+  #endif
 
   }
 
@@ -722,6 +783,14 @@ void application_telemetry ( application_t * application ) {
     beacon_humidity ( atmosphere.humidity, application->compliance.humidity.incursion, application->compliance.humidity.excursion );
     beacon_pressure ( atmosphere.pressure, application->compliance.pressure.incursion, application->compliance.pressure.excursion );
 
+    } else { 
+    
+    #ifdef DEBUG
+    debug_printf ( "\r\n:Sensor: failure" );
+    #endif
+
+    twim_reset ( );
+    
     }
 
   // If the tracking window is open, record compliance for the various
@@ -787,10 +856,15 @@ void application_archive ( application_t * application ) {
   if ( ! application->settings.tracking.time.opened ) return;
   if ( application->settings.tracking.time.closed ) return;
 
-  // Archive the atmospherics and the surface temperature.
+  // If a non-zero UTC time has been established, record the telemetry
+  // in the archives of the atmospheric and surface temperature services.
 
-  atmosphere_archive ( );
-  surface_archive ( );
+  if ( ctl_time_get ( ) ) {
+
+    if ( NRF_SUCCESS != atmosphere_archive ( ) ) { /* NOTE: problem */ }
+    if ( NRF_SUCCESS != surface_archive ( ) ) { /* NOTE: problem */ }
+
+    }
 
   }
 
@@ -819,7 +893,7 @@ void application_handling ( application_t * application ) {
   // Capture the surface temperature using the motion unit.
 
   if ( NRF_SUCCESS == motion_temperature ( &(temperature) ) ) { surface_measured ( temperature ); }
-
+  
   // Update the beacon angle and orientation face.
 
   beacon_surface ( temperature, application->compliance.surface.incursion, application->compliance.surface.excursion );

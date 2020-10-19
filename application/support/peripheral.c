@@ -104,16 +104,13 @@ unsigned peripheral_cease ( void ) {
 
   // If the broadcast is currently active, issue a terminate request.
 
-  if ( thread ) {
-
-    if ( (NRF_SUCCESS == softble_advertisement_state ( &(enabled) )) && (enabled) ) { softble_advertisement_cease ( ); }
-    else return ( NRF_ERROR_INVALID_STATE );
-
-    } else return ( NRF_ERROR_INVALID_STATE );
+  if ( thread ) { softble_advertisement_cease ( ); }
+  else return ( NRF_ERROR_INVALID_STATE );
 
   // Clear the state flags after ceasing.
 
   ctl_events_clear ( &(peripheral->status), PERIPHERAL_CLEAR_CEASE );
+  ctl_yield ( 128 );
 
   // Return with success
 
@@ -318,6 +315,10 @@ static void peripheral_construct ( peripheral_t * peripheral ) {
 
   peripheral->advertisement.data      = data;
   peripheral->advertisement.scan      = scan;
+
+  #ifdef DEBUG
+  debug_printf ( "\r\nPeripheral: advertising" );
+  #endif
 
   }
 

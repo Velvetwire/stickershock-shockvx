@@ -22,7 +22,7 @@
 // Telemetry manager resource
 //-----------------------------------------------------------------------------
 
-#define   MOVEMENT_MANAGER_STACK      512                                       // Thread stack size in bytes
+#define   MOVEMENT_MANAGER_STACK      768                                       // Thread stack size in bytes
 #define   MOVEMENT_MANAGER_PRIORITY   (CTL_TASK_PRIORITY_STANDARD + 7)          // Thread priority
 
 typedef   struct {

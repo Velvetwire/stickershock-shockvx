@@ -55,7 +55,7 @@ typedef   enum {                                                                
 
 typedef   enum {                                                                // Module notices:
           MOVEMENT_NOTICE_ORIENTATION,                                          //  orientation change
-          MOVEMENT_NOTICE_MOVEMENT,                                             //  periodic movement update
+          MOVEMENT_NOTICE_PERIODIC,                                             //  periodic movement update
           MOVEMENT_NOTICE_FREEFALL,                                             //  freefall detected
           MOVEMENT_NOTICE_STARTED,                                              //  movement activity started
           MOVEMENT_NOTICE_STOPPED,                                              //  movement activity stopped

@@ -111,7 +111,8 @@ unsigned handling_settings ( handling_values_t * limit ) {
 unsigned handling_observed ( handling_values_t * values ) {
 
   handling_t *               handling = &(resource);
-  unsigned                     result = NRF_SUCCESS;
+
+  if ( ! values ) return ( NRF_ERROR_NULL );
 
   // Make sure that the requested notice is valid and register the notice.
 
@@ -120,13 +121,10 @@ unsigned handling_observed ( handling_values_t * values ) {
 
   // Update the angle value and issue a notify to any connected peers.
 
-  if ( values ) {
+  unsigned short               handle = handling->handle.value.value_handle;
+  unsigned                     result = softble_characteristic_update ( handle, values, 0, sizeof(handling_values_t) );
 
-    unsigned short            handle = handling->handle.value.value_handle;
-
-    if ( NRF_SUCCESS == (result = softble_characteristic_update ( handle, values, 0, sizeof(handling_values_t) )) ) { result = softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL ); }
-    
-    } else { result = NRF_ERROR_NULL; }
+  if ( NRF_SUCCESS == result ) { softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL ); }
 
   // Return with the result.
 

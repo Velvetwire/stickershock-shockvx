@@ -74,6 +74,7 @@ unsigned control_register ( void * node, void * lock, void * opened, void * clos
     if ( NRF_SUCCESS == result ) { result = control_window_characteristic ( control ); }
 
     if ( NRF_SUCCESS == result ) { result = control_identify_characteristic ( control ); }
+    if ( NRF_SUCCESS == result ) { result = control_summary_characteristic ( control ); }
 
     } else return ( NRF_ERROR_RESOURCES );
 
@@ -123,7 +124,7 @@ unsigned control_notice ( control_notice_t notice, CTL_EVENT_SET_t * set, CTL_EV
 //   returns: NRF_SUCCESS - if update issued
 //            NRF_ERROR_INVALID_STATE - if service is not registered
 //
-// Get the identification duration value.
+// Set the tracking window opened and closed times (UTC).
 //-----------------------------------------------------------------------------
 
 unsigned control_window ( unsigned opened, unsigned closed ) {
@@ -136,7 +137,7 @@ unsigned control_window ( unsigned opened, unsigned closed ) {
   if ( control->service != BLE_GATT_HANDLE_INVALID ) { ctl_mutex_lock_uc ( &(control->mutex) ); }
   else return ( NRF_ERROR_INVALID_STATE );
 
-  // Update the metrics values structure and issue a notify to any connected peers.
+  // Update the window characteristic.
 
   unsigned short               handle = control->handle.window.value_handle;
   unsigned                     result = softble_characteristic_update ( handle, &(window), 0, sizeof(control_window_t) );
@@ -155,7 +156,8 @@ unsigned control_window ( unsigned opened, unsigned closed ) {
 //            closed - UUID of tracking acceptor (128-bit)
 //   returns: NRF_SUCCESS
 //
-// Get the identification duration value.
+// Retrieve the tracking information. This includes the tracking node, the
+// security lock, and the window opened and closed times.
 //-----------------------------------------------------------------------------
 
 unsigned control_tracking ( void * node, void * lock, void * opened, void * closed ) {
@@ -187,6 +189,45 @@ unsigned control_identify ( unsigned * duration ) {
   if ( duration ) { *(duration) = (unsigned) control->value.identify * 1000; }
 
   return ( NRF_SUCCESS );
+
+  }
+
+//-----------------------------------------------------------------------------
+//  function: control_status ( status )
+// arguments: status - status flags
+//            memory - memory space available (0.0 - 1.0)
+//            storage - storage space available (0.0 - 1.0)
+//   returns: NRF_SUCCESS - if update issued
+//            NRF_ERROR_INVALID_STATE - if service is not registered
+//
+// Update the status flags characteristic.
+//-----------------------------------------------------------------------------
+
+unsigned control_status ( control_status_t status, float memory, float storage ) {
+
+  control_t *                 control = &(resource);
+  control_summary_t           summary = { .status = status };
+
+  // Compute the memory and storage percentages
+
+  summary.memory                      = (unsigned char) roundf( memory * ((float) 100.0) );
+  summary.storage                     = (unsigned char) roundf( storage * ((float) 100.0) );
+
+  // Make sure that the requested notice is valid and register the notice.
+
+  if ( control->service != BLE_GATT_HANDLE_INVALID ) { ctl_mutex_lock_uc ( &(control->mutex) ); }
+  else return ( NRF_ERROR_INVALID_STATE );
+
+  // Update the metrics values structure and issue a notify to any connected peers.
+
+  unsigned short               handle = control->handle.summary.value_handle;
+  unsigned                     result = softble_characteristic_update ( handle, &(summary), 0, sizeof(control_summary_t) );
+
+  if ( NRF_SUCCESS == result ) { softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL ); }
+
+  // Return with the result.
+
+  return ( ctl_mutex_unlock ( &(control->mutex) ), result );
 
   }
 
@@ -397,5 +438,26 @@ static unsigned control_identify_characteristic ( control_t * control ) {
                                           .value    = &(control->value.identify) };
 
   return ( softble_characteristic_declare ( control->service, BLE_ATTR_WRITE, uuid, &(data) ) );
+
+  }
+
+//-----------------------------------------------------------------------------
+//  function: control_summary_characteristic ( control )
+// arguments: control - service resource
+//   returns: NRF_ERROR_INVALID_PARAM - if parameters are invalid or missing
+//            NRF_SUCCESS - if added
+//
+// Register the status flags characteristic with the GATT service.
+//-----------------------------------------------------------------------------
+
+static unsigned control_summary_characteristic ( control_t * control ) {
+
+  const void *                   uuid = control_id ( CONTROL_SUMMARY_UUID );
+  softble_characteristic_t       data = { .handles  = &(control->handle.summary),
+                                          .length   = sizeof(control_summary_t),
+                                          .limit    = sizeof(control_summary_t),
+                                          .value    = &(control->value.summary) };
+
+  return ( softble_characteristic_declare ( control->service, BLE_ATTR_NOTIFY | BLE_ATTR_READ, uuid, &(data) ) );
 
   }

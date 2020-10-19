@@ -78,7 +78,7 @@ typedef   enum {
 //       760ms, 852.5ms, 1022.5ms, 1285ms)
 //-----------------------------------------------------------------------------
 
-#define   BEACON_BROADCAST_RATE       ((float) 1285e-3)                         // Broadcast at 1285ms rate
+#define   BEACON_BROADCAST_RATE       ((float) 1285e-3)                         // Broadcast at 1.285 second rate
 #define   BEACON_BROADCAST_POWER      (0)                                       // Broadcast at 0 db
 #define   BEACON_BROADCAST_PERIOD     ((float) 0)                               // Broadcast indefinitely
 
@@ -145,9 +145,9 @@ typedef   enum {                                                                
 //       760ms, 852.5ms, 1022.5ms, 1285ms)
 //-----------------------------------------------------------------------------
 
-#define   PERIPHERAL_BROADCAST_RATE   (float) 152.5e-3                          // Broadcast at 152.5ms rate
-#define   PERIPHERAL_BROADCAST_POWER  (0)                                       // Broadcast at 0 db
-#define   PERIPHERAL_BROADCAST_PERIOD (float) 60                                // Broadcast for one minute
+#define   PERIPHERAL_BROADCAST_RATE   ((float) 152.5e-3)                        // Broadcast at 152.5 millisecond rate
+#define   PERIPHERAL_BROADCAST_POWER  (4)                                       // Broadcast at 4 db
+#define   PERIPHERAL_BROADCAST_PERIOD ((float) 20)                              // Broadcast for 20 seconds
 
           unsigned                    peripheral_begin ( float interval, float period, signed char power );
           unsigned                    peripheral_cease ( void );
@@ -178,6 +178,11 @@ typedef   enum {                                                                
 
           const void *                control_uuid ( void );
           unsigned                    control_register ( void * node, void * lock, void * create, void * accept );
+          unsigned                    control_tracking ( void * node, void * lock, void * create, void * accept );
+
+//-----------------------------------------------------------------------------
+// Control notifications
+//-----------------------------------------------------------------------------
 
 typedef   enum {                                                                // Service notices:
           CONTROL_NOTICE_IDENTIFY,                                              //  request to identify
@@ -185,10 +190,22 @@ typedef   enum {                                                                
           } control_notice_t;
 
           unsigned                    control_notice ( control_notice_t notice, CTL_EVENT_SET_t * set, CTL_EVENT_SET_t events );
-
-          unsigned                    control_window ( unsigned opened, unsigned closed );
-          unsigned                    control_tracking ( void * node, void * lock, void * create, void * accept );
           unsigned                    control_identify ( unsigned * duration );
+
+//-----------------------------------------------------------------------------
+// Control tracking window and status
+//-----------------------------------------------------------------------------
+
+typedef   unsigned short              control_status_t;
+
+          unsigned                    control_status ( control_status_t status, float memory, float storage );
+          unsigned                    control_window ( unsigned opened, unsigned closed );
+
+#define   CONTROL_STATUS_SURFACE      (1 << 0)                                  // Surface temperature sensor OK
+#define   CONTROL_STATUS_AMBIENT      (1 << 1)                                  // Ambient temperature sensor OK
+#define   CONTROL_STATUS_HUMIDITY     (1 << 2)                                  // Humidity sensor OK
+#define   CONTROL_STATUS_PRESSURE     (1 << 3)                                  // Pressure sensor OK
+#define   CONTROL_STATUS_MOVEMENT     (1 << 4)                                  // Movement sensor OK
 
 //-----------------------------------------------------------------------------
 // Sensor telemetry settings GATT service
