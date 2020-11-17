@@ -106,13 +106,14 @@ typedef   enum {                                                                
           unsigned                    beacon_battery ( signed char battery );
 
 //-----------------------------------------------------------------------------
-// Beacon telemetry
+// Beacon atmospheric telemetry
 //-----------------------------------------------------------------------------
 
-          unsigned                    beacon_surface ( float measurement, unsigned incursion, unsigned excursion );
           unsigned                    beacon_ambient ( float measurement, unsigned incursion, unsigned excursion );
           unsigned                    beacon_humidity ( float measurement, unsigned incursion, unsigned excursion );
           unsigned                    beacon_pressure ( float measurement, unsigned incursion, unsigned excursion );
+
+          unsigned                    beacon_temperature ( float measurement, unsigned incursion, unsigned excursion );
 
 //-----------------------------------------------------------------------------
 // Beacon orientation and handling
@@ -146,7 +147,7 @@ typedef   enum {                                                                
 //-----------------------------------------------------------------------------
 
 #define   PERIPHERAL_BROADCAST_RATE   ((float) 152.5e-3)                        // Broadcast at 152.5 millisecond rate
-#define   PERIPHERAL_BROADCAST_POWER  (4)                                       // Broadcast at 4 db
+#define   PERIPHERAL_BROADCAST_POWER  (0)                                       // Broadcast at 0 db
 #define   PERIPHERAL_BROADCAST_PERIOD ((float) 20)                              // Broadcast for 20 seconds
 
           unsigned                    peripheral_begin ( float interval, float period, signed char power );
@@ -179,18 +180,6 @@ typedef   enum {                                                                
           const void *                control_uuid ( void );
           unsigned                    control_register ( void * node, void * lock, void * create, void * accept );
           unsigned                    control_tracking ( void * node, void * lock, void * create, void * accept );
-
-//-----------------------------------------------------------------------------
-// Control notifications
-//-----------------------------------------------------------------------------
-
-typedef   enum {                                                                // Service notices:
-          CONTROL_NOTICE_IDENTIFY,                                              //  request to identify
-          CONTROL_NOTICES
-          } control_notice_t;
-
-          unsigned                    control_notice ( control_notice_t notice, CTL_EVENT_SET_t * set, CTL_EVENT_SET_t events );
-          unsigned                    control_identify ( unsigned * duration );
 
 //-----------------------------------------------------------------------------
 // Control tracking window and status
@@ -226,8 +215,15 @@ typedef   unsigned short              control_status_t;
 
           unsigned                    surface_register ( float lower, float upper );
           unsigned                    surface_settings ( float * lower, float * upper );
-          unsigned                    surface_measured ( float value );
+          unsigned                    surface_measured ( float value, float interval );
 
+//-----------------------------------------------------------------------------
+// Surface compliance data
+//-----------------------------------------------------------------------------
+
+typedef   float                       surface_compliance_t;                     // Seconds inside or outside of compliance
+
+          unsigned                    surface_compliance ( surface_compliance_t * incursion, surface_compliance_t * excursion );
           unsigned                    surface_archive ( void );
 
 //-----------------------------------------------------------------------------
@@ -244,8 +240,21 @@ typedef   struct {
 
           unsigned                    atmosphere_register ( atmosphere_values_t * lower, atmosphere_values_t * upper );
           unsigned                    atmosphere_settings ( atmosphere_values_t * lower, atmosphere_values_t * upper );
-          unsigned                    atmosphere_measured ( atmosphere_values_t * values );
+          unsigned                    atmosphere_measured ( atmosphere_values_t * values, float interval );
 
+//-----------------------------------------------------------------------------
+// Atmospheric compliance data
+//-----------------------------------------------------------------------------
+
+typedef   struct {                                                              // Atmospheric compliance:
+
+          float                       temperature;                              //  Seconds inside or outside of temperature compliance
+          float                       humidity;                                 //  Seconds inside or outside of humidity compliance
+          float                       pressure;                                 //  Seconds inside or outside of pressure compliance
+
+          } atmosphere_compliance_t;
+
+          unsigned                    atmosphere_compliance ( atmosphere_compliance_t * incursion, atmosphere_compliance_t * excursion );
           unsigned                    atmosphere_archive ( void );
 
 //-----------------------------------------------------------------------------
@@ -256,7 +265,7 @@ typedef   struct {
 
           float                       force;                                    // Force (in gravs)
           float                       angle;                                    // Angle (in degrees)
-          
+
           unsigned char               face;                                     // Orientation code (0 = unknown, don't care)
 
           } handling_values_t;

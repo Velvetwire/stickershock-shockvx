@@ -10,7 +10,7 @@
       arm_fp_abi="Hard"
       arm_fpu_type="FPv4-SP-D16"
       arm_linker_heap_size="32768"
-      arm_linker_process_stack_size="256"
+      arm_linker_process_stack_size="384"
       arm_linker_stack_size="1792"
       arm_simulator_memory_simulation_filename="$(TargetsDir)/nRF51/nRF51SimulatorMemory$(HostDLL)"
       arm_simulator_memory_simulation_parameter="nRF52832;0x80000;0x10000"
@@ -50,6 +50,7 @@
       <configuration Name="Common" filter="c;cpp;cxx;cc;h;s;asm;inc" />
       <file file_name="application/application.c" />
       <file file_name="application/shockvx.c" />
+      <file file_name="application/settings.c" />
     </folder>
     <folder Name="Application Services">
       <configuration Name="Common" filter="c;cpp;cxx;cc;h;s;asm;inc" />
@@ -62,6 +63,7 @@
     <folder Name="Application Modules">
       <file file_name="application/modules/sensors.c" />
       <file file_name="application/modules/movement.c" />
+      <file file_name="application/modules/status.c" />
     </folder>
     <folder Name="Application Support">
       <file file_name="application/support/beacon.c" />

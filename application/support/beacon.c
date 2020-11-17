@@ -114,7 +114,6 @@ unsigned beacon_begin ( float interval, float period, signed char power, beacon_
 unsigned beacon_cease ( void ) {
 
   beacon_t *                   beacon = &(resource);
-  bool                        enabled = false;
 
   // If the broadcast is currently active, issue a terminate request.
 
@@ -246,33 +245,6 @@ unsigned beacon_battery ( signed char battery ) {
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 
-unsigned beacon_surface ( float measurement, unsigned incursion, unsigned excursion ) {
-
-  beacon_t *                   beacon = &(resource);
-  unsigned                     result = NRF_SUCCESS;
-
-  // Make sure that the module has started and lock the module resource.
-
-  if ( thread ) { ctl_mutex_lock_uc ( &(beacon->mutex) ); }
-  else return ( NRF_ERROR_INVALID_STATE );
-  
-  beacon->record.temperature.measurement  = (short) roundf ( measurement * 1e2 );
-  beacon->record.temperature.incursion    = (incursion < (65535 * 60) ) ? (unsigned short) (incursion / 60) : 65535;
-  beacon->record.temperature.excursion    = (excursion < (65535 * 60) ) ? (unsigned short) (excursion / 60) : 65535;
-
-  // Request construction of an updated broadcast packet.
-
-  if ( beacon->status & BEACON_STATE_PERIOD ) { ctl_events_set ( &(beacon->status), BEACON_EVENT_CONSTRUCT ); }
-
-  // Release the resource and return with result.
-
-  return ( ctl_mutex_unlock ( &(beacon->mutex) ), result );
-
-  }
-
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-
 unsigned beacon_ambient ( float measurement, unsigned incursion, unsigned excursion ) {
 
   beacon_t *                   beacon = &(resource);
@@ -340,6 +312,33 @@ unsigned beacon_pressure ( float measurement, unsigned incursion, unsigned excur
   beacon->record.atmosphere.pressure.measurement    = (short) roundf ( measurement * 1e3 );
   beacon->record.atmosphere.pressure.incursion      = (incursion < (65535 * 60) ) ? (unsigned short) (incursion / 60) : 65535;
   beacon->record.atmosphere.pressure.excursion      = (excursion < (65535 * 60) ) ? (unsigned short) (excursion / 60) : 65535;
+
+  // Request construction of an updated broadcast packet.
+
+  if ( beacon->status & BEACON_STATE_PERIOD ) { ctl_events_set ( &(beacon->status), BEACON_EVENT_CONSTRUCT ); }
+
+  // Release the resource and return with result.
+
+  return ( ctl_mutex_unlock ( &(beacon->mutex) ), result );
+
+  }
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+unsigned beacon_temperature ( float measurement, unsigned incursion, unsigned excursion ) {
+
+  beacon_t *                   beacon = &(resource);
+  unsigned                     result = NRF_SUCCESS;
+
+  // Make sure that the module has started and lock the module resource.
+
+  if ( thread ) { ctl_mutex_lock_uc ( &(beacon->mutex) ); }
+  else return ( NRF_ERROR_INVALID_STATE );
+  
+  beacon->record.temperature.measurement  = (short) roundf ( measurement * 1e2 );
+  beacon->record.temperature.incursion    = (incursion < (65535 * 60) ) ? (unsigned short) (incursion / 60) : 65535;
+  beacon->record.temperature.excursion    = (excursion < (65535 * 60) ) ? (unsigned short) (excursion / 60) : 65535;
 
   // Request construction of an updated broadcast packet.
 

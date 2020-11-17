@@ -10,9 +10,9 @@
 
 #include  <stickershock.h>
 
+#include  "shockvx.h"
 #include  "settings.h"
 #include  "application.h"
-#include  "shockvx.h"
 
 //=============================================================================
 // SECTION : APPLICATION INITIALIZATION AND STARTUP
@@ -63,9 +63,15 @@ void * init ( signed char type, unsigned char code, void * area, unsigned size )
   // and enable the system watchdog.
 
   ctl_start ( "idle", (CLOCK_LFCLKSRC_SRC_RC << CLOCK_LFCLKSRC_SRC_Pos) );
-  ctl_watch ( APPLICATION_WATCH );
 
-  if ( type == CTL_REBOOT_TYPE_FAULT ) { ctl_spawn ( "fail", (CTL_TASK_ENTRY_t) fail, FAULT_CONDITION( type,code ), APPLICATION_STACK, CTL_TASK_PRIORITY_STANDARD ); }
+  //#ifndef DEBUG
+  //ctl_watch ( APPLICATION_WATCH );
+  //#endif
+
+  // If this is a fault re-boot, spawn the fault handler thread. Otherwise, start
+  // the normal application logic thread.
+
+  if ( type == CTL_REBOOT_TYPE_FAULT ) { ctl_spawn ( "fail", (CTL_TASK_ENTRY_t) fail, (void *) FAULT_CONDITION( type, code ), APPLICATION_STACK, CTL_TASK_PRIORITY_STANDARD ); }
   else { ctl_spawn ( "main", (CTL_TASK_ENTRY_t) main, &(application), APPLICATION_STACK, CTL_TASK_PRIORITY_STANDARD ); }
 
   // If this was an NFC wake-up event ...
@@ -125,13 +131,9 @@ void __attribute__ (( noreturn )) idle ( application_t * application ) {
 
 void tick ( CTL_TIME_t time ) {
 
-  // If settings have changed, request an update to the settings file.
+  // Trip the schedule event roughly every 17 minutes.
 
-  if ( application.status & APPLICATION_STATE_CHANGED ) { ctl_events_set ( &(application.status), APPLICATION_EVENT_SETTINGS ); }
-
-  // Trip the schedule event rougly every 17 minutes.
-
-  if ( (time & 1023) == 15 ) { ctl_events_set ( &(application.status), APPLICATION_EVENT_SCHEDULE ); }
+  if ( (time & 1023) == 17 ) { ctl_events_set ( &(application.status), APPLICATION_EVENT_SCHEDULE ); }
 
   }
 
@@ -149,24 +151,22 @@ void tick ( CTL_TIME_t time ) {
 
 void fail ( unsigned condition ) {
 
-  unsigned                     option = platform_options ( PLATFORM_OPTIONS_FAILURE );
-  unsigned char                  code = FAULT_CODE(condition);
-  signed char                    type = FAULT_TYPE(condition);
+  unsigned                    options = platform_options ( PLATFORM_OPTIONS_FAILURE );
 
   // If the indicator is available, flash red fault condition.
 
-  if ( option & PLATFORM_OPTION_INDICATE ) { indicator_blink ( 1.0, 0.0, 0.0, 0.125, 0.125 ); }
+  if ( options & PLATFORM_OPTION_INDICATOR ) { indicator_blink ( 1.0, 0.0, 0.0, 0.125, 0.125 ); }
 
-  // In debug mode, publish the fault code and stop.
+  unsigned char                  code = FAULT_CODE(condition);
+  signed char                    type = FAULT_TYPE(condition);
+
+  // In debug mode, publish the fault code and stop. Otherwise, pause for the fault
+  // delay period and then reboot normally.
 
   #ifdef DEBUG
-  debug_printf ( "FAIL: %i (%i)!\r\n", type, code );
+  debug_printf ( "\r\nFAIL: %i (%i)!", type, code );
   debug_break ( );
-  #endif
-
-  // In release mode, delay for the fault delay and then reboot.
-
-  #ifndef DEBUG
+  #else
   ctl_delay ( FAULT_DELAY );
   ctl_reboot ( CTL_REBOOT_TYPE_NORMAL, CTL_REBOOT_CODE_NONE );
   #endif
@@ -192,24 +192,14 @@ void fail ( unsigned condition ) {
 
 void main ( application_t * application ) {
 
-  // Configure the application options and set the default application status.
+  ctl_delay ( APPLICATION_STARTING_DELAY );
 
-  ctl_events_init ( &(application->status), application_configure ( application, APPLICATION_OPTIONS_DEFAULT | PLATFORM_OPTIONS_DEFAULT ) );
-  ctl_timer_start ( CTL_TIMER_CYCLICAL, &(application->status), APPLICATION_EVENT_PERIODIC | APPLICATION_EVENT_SUMMARY, (CTL_TIME_t) roundf( APPLICATION_PERIOD  * 1000.0 ) );
+  // Configure the application options and set the default application status
+  // after a short startup delay.
 
-  // Before starting the application logic loop, say hello with the indicator.
-  // Note: the indicator will be green if all sensors are up and running. It
-  //       will be red otherwise.
+  unsigned                    options = platform_options ( PLATFORM_OPTIONS_DEFAULT );
 
-  if ( application->option & PLATFORM_OPTION_INDICATE ) { 
-
-    if ( (application->option & PLATFORM_SENSORS_DEFAULT) == PLATFORM_SENSORS_DEFAULT ) { indicator_color ( (float) 0, (float) 1, (float) 0 ); }
-    else { indicator_color ( (float) 1, (float) 0, (float) 0 ); }
-
-    ctl_delay ( 1.0 );
-    indicator_off ( );
-
-    }
+  ctl_events_init ( &(application->status), application_configure ( application, options | APPLICATION_OPTIONS_DEFAULT ) );
 
   // Wait for application events and pass each event to the appropriate
   // application logic handler.
@@ -217,15 +207,19 @@ void main ( application_t * application ) {
   forever {
 
     CTL_EVENT_SET_t            events = APPLICATION_STATUS_EVENTS;
-    CTL_EVENT_SET_t            status = ctl_events_wait_uc ( CTL_EVENT_WAIT_ANY_EVENTS_WITH_AUTO_CLEAR, &(application->status), events );
+    CTL_EVENT_SET_t            status = ctl_events_wait ( CTL_EVENT_WAIT_ANY_EVENTS_WITH_AUTO_CLEAR, &(application->status), events,
+                                                          CTL_TIMEOUT_DELAY, SETTINGS_UPDATE_INTERVAL );
 
-    // Persistent settings changes.
+    // If no events have occurred within the timeout period, check whether
+    // the persistent settings have changed and need updating.
 
-    if ( status & APPLICATION_EVENT_SETTINGS ) { application_settings ( application ); }
+    if ( ! status ) { if ( application->status & APPLICATION_STATE_SETTINGS ) application_settings ( application ); }
 
-    // If a shutdown request is issued, prepare for shutdown and exit.
+    // If a shutdown request is issued, prepare for shutdown and exit. If
+    // this is first time start up, perform any final bring up tasks.
 
     if ( status & APPLICATION_EVENT_SHUTDOWN ) { application_shutdown ( application ); break; }
+    if ( status & APPLICATION_EVENT_STARTING ) { application_starting ( application ); }
 
     // Periodic events.
 
@@ -233,41 +227,28 @@ void main ( application_t * application ) {
     if ( status & APPLICATION_EVENT_SCHEDULE ) { application_schedule ( application ); }
     if ( status & APPLICATION_EVENT_TIMECODE ) { application_timecode ( application ); }
 
-    // Indicator state update requested.
-
-    if ( status & APPLICATION_EVENT_INDICATE ) { application_indicate ( application ); }
-
-    // Battery level and charging events.
-
-    if ( status & APPLICATION_EVENT_CHARGER ) { application_charger ( application ); }
-    if ( status & APPLICATION_EVENT_BATTERY ) { application_battery ( application ); }
-
-    // System status summary update.
-
-    if ( status & APPLICATION_EVENT_SUMMARY ) { application_summary ( application ); }
-
-    // NFC scanning and peripheral connection events.
+    // Interactive events.
 
     if ( status & APPLICATION_EVENT_TAGGED ) { application_tagged ( application ); }
+
+    // Bluetooth connection events.
+
     if ( status & APPLICATION_EVENT_ATTACH ) { application_attach ( application ); }
     if ( status & APPLICATION_EVENT_DETACH ) { application_detach ( application ); }
     if ( status & APPLICATION_EVENT_PROBED ) { application_probed ( application ); }
     if ( status & APPLICATION_EVENT_EXPIRE ) { application_expire ( application ); }
 
-    // Indication strobe and cancellation events.
-
-    if ( status & APPLICATION_EVENT_STROBE ) { application_strobe ( application ); }
-    if ( status & APPLICATION_EVENT_CANCEL ) { application_cancel ( application ); }
-
     // Periodic telemetry and archiving events.
 
     if ( status & APPLICATION_EVENT_TELEMETRY ) { application_telemetry ( application ); }
-    if ( status & APPLICATION_EVENT_ARCHIVE ) { application_archive( application ); }
-    
+    if ( status & APPLICATION_EVENT_ARCHIVE ) { application_archive ( application ); }
+
     // Movement related events.
 
     if ( status & APPLICATION_EVENT_HANDLING ) { application_handling ( application ); }
     if ( status & APPLICATION_EVENT_ORIENTED ) { application_oriented ( application ); }
+
+    // Incident handling.
 
     if ( status & APPLICATION_EVENT_STRESSED ) { application_stressed ( application ); }
     if ( status & APPLICATION_EVENT_DROPPED ) { application_dropped ( application ); }
@@ -277,7 +258,7 @@ void main ( application_t * application ) {
 
   // Make sure that the storage volumes have all been flushed and put to sleep.
 
-  if ( application->option & (PLATFORM_OPTION_INTERNAL | PLATFORM_OPTION_EXTERNAL) ) { storage_sleep ( ); }
+  if ( application->option & PLATFORM_STORAGE_OPTIONS ) { storage_sleep ( ); }
 
   // Application logic has been stopped so prepare the system for shutdown and then
   // halt the processor.

@@ -14,7 +14,7 @@
 #include  "sensors.h"
 
 //=============================================================================
-// SECTION : 
+// SECTION :
 //=============================================================================
 
 //-----------------------------------------------------------------------------
@@ -54,7 +54,7 @@ unsigned sensors_begin ( float interval, float archival ) {
   sensors_t *                 sensors = &(resource);
   CTL_TIME_t                   period = (CTL_TIME_t) roundf ( interval * 1000.0 );
   unsigned                     result = NRF_SUCCESS;
-  
+
   // Make sure that the module has been started.
 
   if ( thread ) { ctl_mutex_lock_uc ( &(sensors->mutex) ); }
@@ -66,12 +66,12 @@ unsigned sensors_begin ( float interval, float archival ) {
   // Note: we also reset the archive window and elapsed time counter.
 
   if ( (sensors->period = period) > SENSORS_PERIOD_MINIMUM ) {
-    
+
     sensors->archive.window           = (CTL_TIME_t) roundf ( archival * 1000.0 );
     sensors->archive.elapse           = (CTL_TIME_t) 0;
 
     ctl_events_set_clear ( &(sensors->status), SENSORS_EVENT_SETTINGS, SENSORS_EVENT_PERIODIC );
-    
+
     } else { result = NRF_ERROR_INVALID_PARAM; }
 
   // Free the resource and return with the result.
@@ -87,7 +87,7 @@ unsigned sensors_cease ( void ) {
 
   sensors_t *                 sensors = &(resource);
   unsigned                     result = NRF_SUCCESS;
-  
+
   // Make sure that the module has been started.
 
   if ( thread ) { ctl_mutex_lock_uc ( &(sensors->mutex) ); }
@@ -142,17 +142,17 @@ unsigned sensors_close ( void ) {
 //-----------------------------------------------------------------------------
 
 unsigned sensors_notice ( sensors_notice_t notice, CTL_EVENT_SET_t * set, CTL_EVENT_SET_t events ) {
-  
+
   sensors_t *                 sensors = &(resource);
 
   // Make sure that the requested notice is valid and register the notice.
 
   if ( notice < SENSORS_NOTICES ) { ctl_mutex_lock_uc ( &(sensors->mutex) ); }
   else return ( NRF_ERROR_INVALID_PARAM );
-  
+
   sensors->notice[ notice ].set       = set;
   sensors->notice[ notice ].events    = events;
-  
+
   // Notice registered.
 
   return ( ctl_mutex_unlock ( &(sensors->mutex) ), NRF_SUCCESS );
@@ -171,10 +171,10 @@ unsigned sensors_temperature ( float * temperature ) {
 
   if ( thread ) { ctl_mutex_lock_uc ( &(sensors->mutex) ); }
   else return ( NRF_ERROR_INVALID_STATE );
-  
+
   if ( temperature ) {
-    
-    if ( sensors->status & SENSORS_VALUE_SURFACE ) { *(temperature) = sensors->surface.temperature; }
+
+    if ( sensors->status & SENSORS_VALUE_INTERNAL ) { *(temperature) = sensors->internal.temperature; }
     else { result = NRF_ERROR_NOT_FOUND; }
 
     }
@@ -197,7 +197,7 @@ unsigned sensors_atmosphere ( float * temperature, float * humidity, float * pre
 
   if ( thread ) { ctl_mutex_lock_uc ( &(sensors->mutex) ); }
   else return ( NRF_ERROR_INVALID_STATE );
-  
+
   if ( temperature ) {
 
     if ( sensors->status & SENSORS_VALUE_AMBIENT ) { *(temperature) = sensors->humidity.temperature; }
@@ -222,7 +222,33 @@ unsigned sensors_atmosphere ( float * temperature, float * humidity, float * pre
   // Free the resource and return with result.
 
   return ( ctl_mutex_unlock ( &(sensors->mutex) ), result );
-  
+
+  }
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+unsigned sensors_alternate ( float * temperature ) {
+
+  sensors_t *                 sensors = &(resource);
+  unsigned                     result = NRF_SUCCESS;
+
+  // Make sure that the module has been started.
+
+  if ( thread ) { ctl_mutex_lock_uc ( &(sensors->mutex) ); }
+  else return ( NRF_ERROR_INVALID_STATE );
+
+  if ( temperature ) {
+
+    if ( sensors->status & SENSORS_VALUE_STANDBY ) { *(temperature) = sensors->pressure.temperature; }
+    else { result = NRF_ERROR_NOT_FOUND; }
+
+    }
+
+  // Free the resource and return with result.
+
+  return ( ctl_mutex_unlock ( &(sensors->mutex) ), result );
+
   }
 
 
@@ -257,7 +283,7 @@ static void sensors_manager ( sensors_t * sensors ) {
 
   // Indicate that the manager thread is closed.
 
-  ctl_events_init ( &(sensors->status), SENSORS_STATE_CLOSED ); 
+  ctl_events_init ( &(sensors->status), SENSORS_STATE_CLOSED );
 
   }
 
@@ -268,7 +294,7 @@ static void sensors_shutdown ( sensors_t * sensors ) {
 
   // Clear the validity of the telemetry measurements and stop the periodic timer.
 
-  ctl_events_clear ( &(sensors->status), SENSORS_VALUE_HUMIDITY | SENSORS_VALUE_PRESSURE | SENSORS_VALUE_AMBIENT | SENSORS_VALUE_STANDBY | SENSORS_VALUE_SURFACE );
+  ctl_events_clear ( &(sensors->status), SENSORS_VALUE_INTERNAL | SENSORS_VALUE_HUMIDITY | SENSORS_VALUE_PRESSURE | SENSORS_VALUE_AMBIENT | SENSORS_VALUE_STANDBY );
   ctl_timer_clear ( &(sensors->status), SENSORS_EVENT_PERIODIC );
 
   }
@@ -291,7 +317,7 @@ static void sensors_standby ( sensors_t * sensors ) {
 
   // Clear the validity of the telemetry measurements and stop the periodic timer.
 
-  ctl_events_clear ( &(sensors->status), SENSORS_VALUE_HUMIDITY | SENSORS_VALUE_PRESSURE | SENSORS_VALUE_AMBIENT | SENSORS_VALUE_STANDBY | SENSORS_VALUE_SURFACE );
+  ctl_events_clear ( &(sensors->status), SENSORS_VALUE_INTERNAL | SENSORS_VALUE_HUMIDITY | SENSORS_VALUE_PRESSURE | SENSORS_VALUE_AMBIENT | SENSORS_VALUE_STANDBY );
   ctl_timer_clear ( &(sensors->status), SENSORS_EVENT_PERIODIC );
 
   }
@@ -301,35 +327,45 @@ static void sensors_standby ( sensors_t * sensors ) {
 
 static void sensors_periodic ( sensors_t * sensors ) {
 
-  // Start by reading the CPU core die temperature as the surface temperature.
+  // Start by reading the CPU core die temperature as the internal temperature.
 
-  if ( NRF_SUCCESS == softdevice_temperature ( &(sensors->surface.temperature) ) ) { sensors->status |= (SENSORS_VALUE_SURFACE); }
-  else { sensors->status &= ~(SENSORS_VALUE_SURFACE); }
+  if ( NRF_SUCCESS == softdevice_temperature ( &(sensors->internal.temperature) ) ) { sensors->status |= (SENSORS_VALUE_INTERNAL); }
+  else { sensors->status &= ~(SENSORS_VALUE_INTERNAL); }
+
+  // Read the standby temperature and pressure from the pressure sensor.
+
+  if ( sensors->option & PLATFORM_OPTION_PRESSURE ) {
+
+    if ( NRF_SUCCESS == pressure_measurement ( &(sensors->pressure.measurement), &(sensors->pressure.temperature) ) ) { sensors->status |= (SENSORS_VALUE_PRESSURE | SENSORS_VALUE_STANDBY); }
+    else { sensors->status &= ~(SENSORS_VALUE_PRESSURE | SENSORS_VALUE_STANDBY); }
+
+    // If the pressure sensor failed to respond, reset the bus.
+
+    if ( sensors->status & SENSORS_VALUE_PRESSURE ) { ctl_yield ( SENSORS_YIELD_TIMEOUT ); }
+    else { twim_reset ( ); }
+
+    }
 
   // Read the ambient temperature and humidity from the humidity sensor. If the
   // core temperature is low and the air temperature is high, assume that the
   // air temperature sensor has wrapped and adjust.
 
   if ( sensors->option & PLATFORM_OPTION_HUMIDITY ) {
-    
+
     if ( NRF_SUCCESS == humidity_measurement ( &(sensors->humidity.measurement), &(sensors->humidity.temperature) ) ) { sensors->status |= (SENSORS_VALUE_HUMIDITY | SENSORS_VALUE_AMBIENT); }
     else { sensors->status &= ~(SENSORS_VALUE_HUMIDITY | SENSORS_VALUE_AMBIENT); }
 
-    if ( (sensors->surface.temperature < ((float) - 20.0) && (sensors->humidity.temperature > ((float) 60.0))) ) {
+    if ( (sensors->internal.temperature < ((float) - 20.0) && (sensors->humidity.temperature > ((float) 60.0))) ) {
 
       sensors->humidity.temperature = sensors->humidity.temperature - ((float) 175.72);
       sensors->humidity.measurement = sensors->humidity.measurement * ((float) 0.5);
 
       }
 
-    }
+    // If the humidity sensor failed to respond, reset the bus.
 
-  // Read the standby temperature and pressure from the pressure sensor.
-
-  if ( sensors->option & PLATFORM_OPTION_PRESSURE ) {
-    
-    if ( NRF_SUCCESS == pressure_measurement ( &(sensors->pressure.measurement), &(sensors->pressure.temperature) ) ) { sensors->status |= (SENSORS_VALUE_PRESSURE | SENSORS_VALUE_STANDBY); }
-    else { sensors->status &= ~(SENSORS_VALUE_PRESSURE | SENSORS_VALUE_STANDBY); }
+    if ( sensors->status & SENSORS_VALUE_HUMIDITY ) { ctl_yield ( SENSORS_YIELD_TIMEOUT ); }
+    else { twim_reset ( ); }
 
     }
 
@@ -345,7 +381,7 @@ static void sensors_periodic ( sensors_t * sensors ) {
     sensors->archive.elapse           = sensors->archive.elapse + sensors->period;
     if ( sensors->archive.elapse >= sensors->archive.window ) { ctl_notice ( sensors->notice + SENSORS_NOTICE_ARCHIVE ); }
     sensors->archive.elapse           = sensors->archive.elapse % sensors->archive.window;
-    
+
     }
 
   }

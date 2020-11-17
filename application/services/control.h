@@ -52,8 +52,6 @@ typedef   struct {
           CTL_MUTEX_t                 mutex;                                    // Access mutex
           unsigned short              service;                                  // Service handle
 
-          CTL_NOTICE_t                notice [ CONTROL_NOTICES ];               // Module notices
-
           struct {                                                              // Characteristic handles:
 
             ble_gatts_char_handles_t  node;                                     //  Tracking node characteristic
@@ -63,7 +61,6 @@ typedef   struct {
             ble_gatts_char_handles_t  closed;                                   //  Tracking closed characteristic
             ble_gatts_char_handles_t  window;                                   //  Tracking time window
 
-            ble_gatts_char_handles_t  identify;                                 //  Identify characteristic
             ble_gatts_char_handles_t  summary;                                  //  Summary characteristic
 
             } handle;
@@ -77,7 +74,6 @@ typedef   struct {
             unsigned char             closed [ SOFTDEVICE_KEY_LENGTH ];         // UUID used to close the window
             control_window_t          window;                                   // Tracking window
 
-            unsigned char             identify;                                 // Identify value (seconds to identify)
             control_summary_t         summary;                                  // Summary status
 
             } value;
@@ -109,15 +105,6 @@ static    unsigned                    control_lock_characteristic ( control_t * 
 static    unsigned                    control_opened_characteristic ( control_t * control, void * opened );
 static    unsigned                    control_closed_characteristic ( control_t * control, void * closed );
 static    unsigned                    control_window_characteristic ( control_t * control );
-
-//-----------------------------------------------------------------------------
-// The identify characteristic is a write-only 8-bit second count which will
-// trigger the identification strobe.
-//-----------------------------------------------------------------------------
-
-#define   CONTROL_IDENTIFY_UUID       (0x56784964)                              // 32-bit characteristic UUID component (VxId)
-
-static    unsigned                    control_identify_characteristic ( control_t * control );
 
 //-----------------------------------------------------------------------------
 // The summary characteristic is a read-only value used to report basic status.

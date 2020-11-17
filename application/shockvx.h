@@ -11,8 +11,9 @@
 #ifndef   __SHOCKVX__
 #define   __SHOCKVX__
 
+
 //=============================================================================
-// SECTION : TELEMETRY SENSORS SERVICE
+// SECTION : SENSOR TELEMETRY SERVICE
 //=============================================================================
 
 //-----------------------------------------------------------------------------
@@ -39,6 +40,7 @@ typedef   enum {                                                                
 
           unsigned                    sensors_temperature ( float * temperature );
           unsigned                    sensors_atmosphere ( float * temperature, float * humidity, float * pressure );
+          unsigned                    sensors_alternate ( float * temperature );
 
 
 //=============================================================================
@@ -76,6 +78,62 @@ typedef   enum {                                                                
 
 
 //=============================================================================
+// SECTION : SYSTEM STATUS MONITOR
+//=============================================================================
+
+//-----------------------------------------------------------------------------
+// System status monitor
+//-----------------------------------------------------------------------------
+
+#define   STATUS_UPDATE_INTERVAL      ((float) 75.0)                            // Update interval 75 seconds
+
+          unsigned                    status_start ( float interval );
+          unsigned                    status_check ( unsigned states );
+
+//-----------------------------------------------------------------------------
+// Status state changes
+//-----------------------------------------------------------------------------
+
+          void                        status_raise ( unsigned states );
+          void                        status_lower ( unsigned states );
+
+//-----------------------------------------------------------------------------
+// System status bits
+//-----------------------------------------------------------------------------
+
+#define   STATUS_SYSTEM               (0x00ff0000)
+
+#define   STATUS_CONNECT              (1 << 16)                                 // Connected to peer
+#define   STATUS_SCANNER              (1 << 17)                                 // Scanner is active
+#define   STATUS_CHARGED              (1 << 18)                                 // Charger is connected and charged
+#define   STATUS_CHARGER              (1 << 19)                                 // Charger is connected and charging
+#define   STATUS_BATTERY              (1 << 20)                                 // Battery is critical
+#define   STATUS_PROBLEM              (1 << 21)                                 // Problem condition
+
+//-----------------------------------------------------------------------------
+// Sensor status bits
+//-----------------------------------------------------------------------------
+
+#define   STATUS_SENSORS              (0x0000ffff)
+
+#define   STATUS_SURFACE              (1 << 0)                                  // Surface temperature sensor OK
+#define   STATUS_AMBIENT              (1 << 1)                                  // Ambient temperature sensor OK
+#define   STATUS_HUMIDITY             (1 << 2)                                  // Humidity sensor OK
+#define   STATUS_PRESSURE             (1 << 3)                                  // Pressure sensor OK
+#define   STATUS_MOVEMENT             (1 << 4)                                  // Movement sensor OK
+
+//-----------------------------------------------------------------------------
+// Battery status
+//-----------------------------------------------------------------------------
+
+#define   STARTING_BATTERY_THRESHOLD  ((float) 3.00)                            // Minimum battery power before startup
+#define   INDICATE_BATTERY_THRESHOLD  ((float) 3.25)                            // Minimum battery to allow indication
+#define   CRITICAL_BATTERY_THRESHOLD  ((float) 3.00)                            // Critical battery alert level
+
+          unsigned                    status_battery ( float * voltage, float * percent );
+
+
+//=============================================================================
 // SECTION : FAULT HANDLING
 //=============================================================================
 
@@ -83,7 +141,7 @@ typedef   enum {                                                                
 // Hard fault code conditions.
 //-----------------------------------------------------------------------------
 
-#define   FAULT_CONDITION(t,c)        (void *)(((unsigned)t << 8) | ((unsigned)c << 0))
+#define   FAULT_CONDITION(t,c)        (((unsigned)t << 8) | ((unsigned)c << 0))
 #define   FAULT_TYPE(f)               (signed char)((f >> 8) & 255)
 #define   FAULT_CODE(f)               (unsigned char)(f & 255)
 

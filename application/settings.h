@@ -4,7 +4,7 @@
 //  author: Velvetwire, llc
 //    file: settings.h
 //
-// Application settings.
+// Persistent application settings.
 //
 // (c) Copyright 2016-2020 Velvetwire, LLC. All rights reserved.
 //=============================================================================
@@ -18,11 +18,16 @@
 // SECTION : PERSISTENT APPLICATION SETTINGS
 //=============================================================================
 
+#define   SETTINGS_VERSION            0x0100                                    // Version index for this setting configuration
+#define   SETTINGS_UPDATE_INTERVAL    (4096)                                    // Settings update interval (milliseconds)
+
 //-----------------------------------------------------------------------------
 // Declare the application settings file structure.
 //-----------------------------------------------------------------------------
 
-typedef   struct {
+typedef   struct {                                                              // Persistent settings:
+
+          unsigned short              version;                                  // Settings version index
 
           // Device broadcast label (currently unused)
 

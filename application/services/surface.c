@@ -105,15 +105,16 @@ unsigned surface_settings ( float * lower, float * upper ) {
   }
 
 //-----------------------------------------------------------------------------
-//  function: surface_measured ( value )
+//  function: surface_measured ( value, interval )
 // arguments: values - pointer to measured values structure
+//            interval - measurement interval in seconds
 //   returns: NRF_SUCCESS - if update issued
 //            NRF_ERROR_INVALID_STATE - if service is not registered
 //
 // Update the surface values characteristic.
 //-----------------------------------------------------------------------------
 
-unsigned surface_measured ( float value ) {
+unsigned surface_measured ( float value, float interval ) {
 
   surface_t *                 surface = &(resource);
 
@@ -129,10 +130,51 @@ unsigned surface_measured ( float value ) {
 
   if ( NRF_SUCCESS == result ) { softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL ); }
 
+  // Check the surface temperature against the compliance requirements and
+  // adjust the incursion and excursion times accordingly.
+
+  if ( surface->value.lower < surface->value.upper ) {
+    
+    if ( (value >= surface->value.lower) && (value <= surface->value.upper) ) { surface->compliance.incursion += interval; }
+    else { surface->compliance.excursion += interval; }
+    
+    }
+
   // Return with the result.
 
   return ( ctl_mutex_unlock ( &(surface->mutex) ), result );
 
+  }
+
+//-----------------------------------------------------------------------------
+//  function: surface_compliance ( incursion, excursion )
+// arguments: incursion - time in compliance
+//            excursion - time outside of compliance
+//   returns: NRF_SUCCESS - if update issued
+//            NRF_ERROR_INVALID_STATE - if service is not registered
+//
+// Update the surface values characteristic.
+//-----------------------------------------------------------------------------
+
+unsigned surface_compliance ( surface_compliance_t * incursion, surface_compliance_t * excursion ) {
+
+  surface_t *                 surface = &(resource);
+  unsigned                     result = NRF_SUCCESS;
+
+  // Make sure that the service has been registered with the stack.
+
+  if ( surface->service != BLE_GATT_HANDLE_INVALID ) { ctl_mutex_lock_uc ( &(surface->mutex) ); }
+  else return ( NRF_ERROR_INVALID_STATE );
+
+  // Retrieve the compliance times.
+
+  if ( incursion ) { *(incursion) = surface->compliance.incursion; }
+  if ( excursion ) { *(excursion) = surface->compliance.excursion; }
+
+  // Return with result.
+
+  return ( ctl_mutex_unlock ( &(surface->mutex) ), result );
+  
   }
 
 //-----------------------------------------------------------------------------

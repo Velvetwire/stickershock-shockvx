@@ -108,15 +108,16 @@ unsigned atmosphere_settings ( atmosphere_values_t * lower, atmosphere_values_t 
   }
 
 //-----------------------------------------------------------------------------
-//  function: atmosphere_measured ( values )
+//  function: atmosphere_measured ( values, interval )
 // arguments: values - pointer to measured values structure
+//            interval - measurement interval in seconds
 //   returns: NRF_SUCCESS - if update issued
 //            NRF_ERROR_INVALID_STATE - if service is not registered
 //
 // Update the atmosphere values characteristic.
 //-----------------------------------------------------------------------------
 
-unsigned atmosphere_measured ( atmosphere_values_t * values ) {
+unsigned atmosphere_measured ( atmosphere_values_t * values, float interval ) {
 
   atmosphere_t *           atmosphere = &(resource);
 
@@ -134,10 +135,71 @@ unsigned atmosphere_measured ( atmosphere_values_t * values ) {
     
   if ( NRF_SUCCESS == result ) { softble_characteristic_notify ( handle, BLE_CONN_HANDLE_ALL ); }
 
+  // Check the atmospheric temperature against the compliance requirements and
+  // adjust the incursion and excursion times accordingly.
+
+  if ( atmosphere->value.lower.temperature < atmosphere->value.upper.temperature ) {
+    
+    if ( (values->temperature >= atmosphere->value.lower.temperature) && (values->temperature <= atmosphere->value.upper.temperature) ) { atmosphere->compliance.incursion.temperature += interval; }
+    else { atmosphere->compliance.excursion.temperature += interval; }
+    
+    }
+
+  // Check the atmospheric humidity against the compliance requirements and
+  // adjust the incursion and excursion times accordingly.
+
+  if ( atmosphere->value.lower.humidity < atmosphere->value.upper.humidity ) {
+    
+    if ( (values->humidity >= atmosphere->value.lower.humidity) && (values->humidity <= atmosphere->value.upper.humidity) ) { atmosphere->compliance.incursion.humidity += interval; }
+    else { atmosphere->compliance.excursion.humidity += interval; }
+    
+    }
+
+  // Check the atmospheric pressure against the compliance requirements and
+  // adjust the incursion and excursion times accordingly.
+
+  if ( atmosphere->value.lower.pressure < atmosphere->value.upper.pressure ) {
+    
+    if ( (values->pressure >= atmosphere->value.lower.pressure) && (values->pressure <= atmosphere->value.upper.pressure) ) { atmosphere->compliance.incursion.pressure += interval; }
+    else { atmosphere->compliance.excursion.pressure += interval; }
+    
+    }
+
   // Return with the result.
 
   return ( ctl_mutex_unlock ( &(atmosphere->mutex) ), result );
 
+  }
+
+//-----------------------------------------------------------------------------
+//  function: atmosphere_compliance ( incursion, excursion )
+// arguments: incursion - time in compliance
+//            excursion - time outside of compliance
+//   returns: NRF_SUCCESS - if update issued
+//            NRF_ERROR_INVALID_STATE - if service is not registered
+//
+// Update the surface values characteristic.
+//-----------------------------------------------------------------------------
+
+unsigned atmosphere_compliance ( atmosphere_compliance_t * incursion, atmosphere_compliance_t * excursion ) {
+
+  atmosphere_t *           atmosphere = &(resource);
+  unsigned                     result = NRF_SUCCESS;
+
+  // Make sure that the service has been registered with the stack.
+
+  if ( atmosphere->service != BLE_GATT_HANDLE_INVALID ) { ctl_mutex_lock_uc ( &(atmosphere->mutex) ); }
+  else return ( NRF_ERROR_INVALID_STATE );
+
+  // Retrieve the compliance times.
+
+  if ( incursion ) { *(incursion) = atmosphere->compliance.incursion; }
+  if ( excursion ) { *(excursion) = atmosphere->compliance.excursion; }
+
+  // Return with result.
+
+  return ( ctl_mutex_unlock ( &(atmosphere->mutex) ), result );
+  
   }
 
 //-----------------------------------------------------------------------------

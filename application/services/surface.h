@@ -67,6 +67,13 @@ typedef   struct {
 
             } value;
 
+          struct {                                                              // Compliance values:
+
+            surface_compliance_t      incursion;                                //  Time within compliance
+            surface_compliance_t      excursion;                                //  Time outside compliance
+
+            } compliance;
+
           } surface_t;
 
 static    unsigned                    surface_event ( surface_t * surface, ble_evt_t * event );

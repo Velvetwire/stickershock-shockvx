@@ -73,7 +73,6 @@ unsigned control_register ( void * node, void * lock, void * opened, void * clos
     if ( NRF_SUCCESS == result ) { result = control_closed_characteristic ( control, closed ); }
     if ( NRF_SUCCESS == result ) { result = control_window_characteristic ( control ); }
 
-    if ( NRF_SUCCESS == result ) { result = control_identify_characteristic ( control ); }
     if ( NRF_SUCCESS == result ) { result = control_summary_characteristic ( control ); }
 
     } else return ( NRF_ERROR_RESOURCES );
@@ -85,35 +84,6 @@ unsigned control_register ( void * node, void * lock, void * opened, void * clos
   // Return with registration result.
 
   return ( result );
-
-  }
-
-//-----------------------------------------------------------------------------
-//  function: control_notice ( notice, set, events )
-// arguments: notice - the notice index to enable or disable
-//            set - event set to trigger (NULL to disable)
-//            events - event bits to set
-//   returns: NRF_SUCCESS - if notice enabled
-//            NRF_ERROR_INVALID_PARAM - if the notice index is not valid
-//
-// Register for notices with the power monitor.
-//-----------------------------------------------------------------------------
-
-unsigned control_notice ( control_notice_t notice, CTL_EVENT_SET_t * set, CTL_EVENT_SET_t events ) {
-
-  control_t *                 control = &(resource);
-
-  // Make sure that the requested notice is valid and register the notice.
-
-  if ( notice < CONTROL_NOTICES ) { ctl_mutex_lock_uc ( &(control->mutex) ); }
-  else return ( NRF_ERROR_INVALID_PARAM );
-
-  control->notice[ notice ].set       = set;
-  control->notice[ notice ].events    = events;
-
-  // Notice registered.
-
-  return ( ctl_mutex_unlock ( &(control->mutex) ), NRF_SUCCESS );
 
   }
 
@@ -175,28 +145,10 @@ unsigned control_tracking ( void * node, void * lock, void * opened, void * clos
   }
 
 //-----------------------------------------------------------------------------
-//  function: control_identify ( duration )
-// arguments: duration - strobe duration in milliseconds
-//   returns: NRF_SUCCESS
-//
-// Get the identification strobe duration in milliseconds.
-//-----------------------------------------------------------------------------
-
-unsigned control_identify ( unsigned * duration ) {
-
-  control_t *                 control = &(resource);
-
-  if ( duration ) { *(duration) = (unsigned) control->value.identify * 1000; }
-
-  return ( NRF_SUCCESS );
-
-  }
-
-//-----------------------------------------------------------------------------
 //  function: control_status ( status )
 // arguments: status - status flags
-//            memory - memory space available (0.0 - 1.0)
-//            storage - storage space available (0.0 - 1.0)
+//            memory - memory space used (0.0 - 1.0)
+//            storage - storage space used (0.0 - 1.0)
 //   returns: NRF_SUCCESS - if update issued
 //            NRF_ERROR_INVALID_STATE - if service is not registered
 //
@@ -277,10 +229,6 @@ static unsigned control_write ( control_t * control, unsigned short connection, 
 
   if ( write->handle == control->handle.opened.value_handle ) { memcpy ( control->value.opened + write->offset, write->data, write->len ); }
   if ( write->handle == control->handle.closed.value_handle ) { memcpy ( control->value.closed + write->offset, write->data, write->len ); }
-
-  // If this is a write to the identify characteristic, issue an identify notice.
-
-  if ( write->handle == control->handle.identify.value_handle ) { ctl_notice ( control->notice + CONTROL_NOTICE_IDENTIFY ); }
 
   // Write processed.
 
@@ -417,27 +365,6 @@ static unsigned control_window_characteristic ( control_t * control ) {
                                           .value    = &(control->value.window) };
 
   return ( softble_characteristic_declare ( control->service, BLE_ATTR_READ, uuid, &(data) ) );
-
-  }
-
-//-----------------------------------------------------------------------------
-//  function: control_identify_characteristic ( control )
-// arguments: control - service resource
-//   returns: NRF_ERROR_INVALID_PARAM - if parameters are invalid or missing
-//            NRF_SUCCESS - if added
-//
-// Register the identification strobe characteristic with the GATT service.
-//-----------------------------------------------------------------------------
-
-static unsigned control_identify_characteristic ( control_t * control ) {
-
-  const void *                   uuid = control_id ( CONTROL_IDENTIFY_UUID );
-  softble_characteristic_t       data = { .handles  = &(control->handle.identify),
-                                          .length   = sizeof(char),
-                                          .limit    = sizeof(char),
-                                          .value    = &(control->value.identify) };
-
-  return ( softble_characteristic_declare ( control->service, BLE_ATTR_WRITE, uuid, &(data) ) );
 
   }
 

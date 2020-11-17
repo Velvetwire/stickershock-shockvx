@@ -14,7 +14,7 @@
 #include  "movement.h"
 
 //=============================================================================
-// SECTION : 
+// SECTION :
 //=============================================================================
 
 //-----------------------------------------------------------------------------
@@ -52,9 +52,9 @@ unsigned movement_start ( unsigned option ) {
 unsigned movement_begin ( float interval ) {
 
   movement_t *               movement = &(resource);
-  CTL_TIME_t                   period = (CTL_TIME_t) roundf ( interval * 1000.0 );
+  CTL_TIME_t                   period = (CTL_TIME_t) (interval * 1000);
   unsigned                     result = NRF_SUCCESS;
-  
+
   // Make sure that the module has been started.
 
   if ( thread ) { ctl_mutex_lock_uc ( &(movement->mutex) ); }
@@ -78,7 +78,7 @@ unsigned movement_cease ( void ) {
 
   movement_t *               movement = &(resource);
   unsigned                     result = NRF_SUCCESS;
-  
+
   // Make sure that the module has been started.
 
   if ( thread ) { ctl_mutex_lock_uc ( &(movement->mutex) ); }
@@ -133,17 +133,17 @@ unsigned movement_close ( void ) {
 //-----------------------------------------------------------------------------
 
 unsigned movement_notice ( movement_notice_t notice, CTL_EVENT_SET_t * set, CTL_EVENT_SET_t events ) {
-  
+
   movement_t *               movement = &(resource);
 
   // Make sure that the requested notice is valid and register the notice.
 
   if ( notice < MOVEMENT_NOTICES ) { ctl_mutex_lock_uc ( &(movement->mutex) ); }
   else return ( NRF_ERROR_INVALID_PARAM );
-  
+
   movement->notice[ notice ].set      = set;
   movement->notice[ notice ].events   = events;
-  
+
   // Notice registered.
 
   return ( ctl_mutex_unlock ( &(movement->mutex) ), NRF_SUCCESS );
@@ -163,13 +163,13 @@ unsigned movement_temperature ( float * temperature ) {
 
   if ( thread ) { ctl_mutex_lock_uc ( &(movement->mutex) ); }
   else return ( NRF_ERROR_INVALID_STATE );
-  
+
   if ( temperature ) { *(temperature) = movement->temperature; }
 
   // Free the resource and return with result.
 
   return ( ctl_mutex_unlock ( &(movement->mutex) ), result );
-  
+
   }
 
 //-----------------------------------------------------------------------------
@@ -186,7 +186,7 @@ unsigned movement_forces ( float * force, float * x, float * y, float * z ) {
   else return ( NRF_ERROR_INVALID_STATE );
 
   if ( movement->status & MOVEMENT_STATE_VECTORS ) {
-    
+
     if ( force ) { *(force) = movement->force.value; }
 
     if ( x ) { *(x) = movement->vectors.linear.x; }
@@ -198,7 +198,7 @@ unsigned movement_forces ( float * force, float * x, float * y, float * z ) {
   // Free the resource and return with result.
 
   return ( ctl_mutex_unlock ( &(movement->mutex) ), result );
-    
+
   }
 
 
@@ -216,16 +216,16 @@ unsigned movement_angles ( float * angle, char * orientation ) {
   else return ( NRF_ERROR_INVALID_STATE );
 
   if ( movement->status & MOVEMENT_STATE_VECTORS ) {
-    
+
     if ( orientation ) { *(orientation) = movement->orientation; }
     if ( angle ) { *(angle) = movement->angle.value; }
-    
+
     } else return ( NRF_ERROR_NULL );
 
   // Free the resource and return with result.
 
   return ( ctl_mutex_unlock ( &(movement->mutex) ), result );
-    
+
   }
 
 //-----------------------------------------------------------------------------
@@ -253,7 +253,7 @@ unsigned movement_limits ( float force, float angle ) {
 
 
 //=============================================================================
-// SECTION : BEACON MANAGER THREAD
+// SECTION : MOVEMENT MANAGER THREAD
 //=============================================================================
 
 //-----------------------------------------------------------------------------
@@ -291,7 +291,7 @@ static void movement_manager ( movement_t * movement ) {
 
   // Indicate that the manager thread is closed.
 
-  ctl_events_init ( &(movement->status), MOVEMENT_STATE_CLOSED ); 
+  ctl_events_init ( &(movement->status), MOVEMENT_STATE_CLOSED );
 
   }
 
@@ -322,10 +322,11 @@ static void movement_settings ( movement_t * movement ) {
   // updated vectors. Get the initial orientation.
 
   if ( movement->option & PLATFORM_OPTION_MOTION ) {
-  
+
     motion_options ( MOTION_OPTION_TEMPERATURE | MOTION_OPTION_VECTORS | MOTION_OPTION_FREEFALL );
+    //motion_linear ( MOTION_RATE_100HZ, MOTION_RANGE_16G );
     motion_linear ( MOTION_RATE_50HZ, MOTION_RANGE_16G );
-    
+
     // Request wake-up on activity. This will put the motion unit into sleep
     // at its lowest frequency whenever inactivity is detected.
 
@@ -363,12 +364,12 @@ static void movement_settings ( movement_t * movement ) {
 
     if ( NRF_SUCCESS == humidity_measurement ( NULL, &(ambient) ) ) { motion_calibration ( ambient ); }
 
-    } 
-  
+    }
+
   // Start the periodic timer.
 
   ctl_timer_start ( CTL_TIMER_CYCLICAL, &(movement->status), MOVEMENT_EVENT_PERIODIC, movement->period );
-  
+
   }
 
 //-----------------------------------------------------------------------------
@@ -427,7 +428,7 @@ static void movement_freefall ( movement_t * movement ) {
 static void __attribute__ (( optimize(2) )) movement_vectors ( movement_t * movement ) {
 
   if ( NRF_SUCCESS == motion_vectors ( &(movement->vectors.angular), &(movement->vectors.linear) ) ) {
-    
+
     float                      planar = (movement->vectors.linear.x * movement->vectors.linear.x) + (movement->vectors.linear.y * movement->vectors.linear.y);
     float                      vector = (movement->vectors.linear.z * movement->vectors.linear.z) + planar;
     float                      radius = sqrtf ( planar );
@@ -472,7 +473,7 @@ static void __attribute__ (( optimize(2) )) movement_vectors ( movement_t * move
 //-----------------------------------------------------------------------------
 
 static void movement_active ( movement_t * movement ) {
-  
+
   ctl_events_set ( &(movement->status), MOVEMENT_STATE_ACTIVITY );
 
   }

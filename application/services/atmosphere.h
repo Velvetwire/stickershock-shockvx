@@ -13,7 +13,7 @@
 #define   __ATMOSPHERE__
 
 //-----------------------------------------------------------------------------
-// Atmospheric telemetry event archvie
+// Atmospheric telemetry event archive
 //-----------------------------------------------------------------------------
 
 #define   ATMOSPHERE_ARCHIVE          "internal:archive/atmosphere.rec"         // Atmospheric archive file
@@ -68,6 +68,13 @@ typedef   struct {
             unsigned short            count;                                    //  Record count
 
             } value;
+
+          struct {                                                              // Compliance values:
+
+            atmosphere_compliance_t   incursion;                                //  Time within compliance
+            atmosphere_compliance_t   excursion;                                //  Time outside compliance
+
+            } compliance;
 
           } atmosphere_t;
 

@@ -12,8 +12,6 @@
 #ifndef   __APPLICATION__
 #define   __APPLICATION__
 
-#include  "settings.h"
-
 //-----------------------------------------------------------------------------
 // Declare the default name to use for the application and the path to the
 // application settings file.
@@ -30,22 +28,11 @@
 #define   APPLICATION_DEFAULTS        0
 
 //-----------------------------------------------------------------------------
-// Declare a telemetry compliance tracking structure.
-//-----------------------------------------------------------------------------
-
-typedef   struct {
-          
-          unsigned                    incursion;
-          unsigned                    excursion;
-          
-          } application_compliance_t;
-
-//-----------------------------------------------------------------------------
 // Declare the application resource structure.
 //-----------------------------------------------------------------------------
 
-#define   APPLICATION_WATCH           3.0                                       // 3 second watchdog
-#define   APPLICATION_STACK           768                                       // Application stack size in bytes
+#define   APPLICATION_WATCH           ((float) 3.0)                             // 3 second watchdog
+#define   APPLICATION_STACK           (768)                                     // Application stack size in bytes
 
 typedef   struct {
 
@@ -67,49 +54,62 @@ typedef   struct {
             unsigned short            build;                                    //  build number
             } firmware;
 
-          struct {
-            float                     percent;
-            float                     voltage;
-            } battery;
-
-          application_settings_t      settings;
+          application_settings_t      settings;                                 // Persistent settings
 
           struct {
-
-            application_compliance_t  surface;                                  //  Surface temperature compliance
-            application_compliance_t  ambient;                                  //  Ambient temperature compliance
-            application_compliance_t  humidity;                                 //  Humidity compliance
-            application_compliance_t  pressure;                                 //  Pressure compliance
 
             unsigned                  misorient;                                //  Misoriented according to preferences
             unsigned                  dropped;                                  //  Drops have been detected
             unsigned                  bumped;                                   //  Bumps have been detected
             unsigned                  tipped;                                   //  Tilt has been detected
 
-            } compliance;
+            } incident;
 
           } application_t;
 
           void                        main ( application_t * application );
 
 //-----------------------------------------------------------------------------
-// Application status and event bits
+// Application status bits
 //-----------------------------------------------------------------------------
 
-#define   APPLICATION_STATUS_EVENTS   (0xFFFFFF00)                              // Dedicate upper 24-bits to events
-#define   APPLICATION_STATUS_STATES   (0x000000FF)                              // Reserve lower 8-bits for states
+#define   APPLICATION_STATUS_EVENTS   (0x7FFFFFFF)
+#define   APPLICATION_STATUS_STATES   (0x80000000)
 
-static    void                        application_raise ( application_t * application, unsigned state );
-static    void                        application_lower ( application_t * application, unsigned state );
+//-----------------------------------------------------------------------------
+// Persistent settings change
+//-----------------------------------------------------------------------------
 
-#define   APPLICATION_STATE_CHANGED   (1 << 0)                                  // Application settings have changed
-#define   APPLICATION_STATE_PROBLEM   (1 << 1)                                  // Problem condition
-#define   APPLICATION_STATE_BATTERY   (1 << 2)                                  // Battery is critical
-#define   APPLICATION_STATE_CHARGED   (1 << 3)                                  // Charger is connected and charged
-#define   APPLICATION_STATE_CHARGER   (1 << 4)                                  // Charger is connected and charging
-#define   APPLICATION_STATE_BLINKER   (1 << 5)                                  // Identification blinker
-#define   APPLICATION_STATE_CONNECT   (1 << 6)                                  // Connected to peer
-#define   APPLICATION_STATE_NOMINAL   (1 << 7)                                  // Telemetry is nominal
+#define   APPLICATION_STATE_SETTINGS  (1 << 31)
+
+          void                        application_settings ( application_t * application );
+          unsigned                    application_defaults ( application_t * application, unsigned options );
+
+//-----------------------------------------------------------------------------
+// Application shutdown and deep sleep
+//-----------------------------------------------------------------------------
+
+#define   APPLICATION_SHUTDOWN_DELAY  ((float) 2.5)
+#define   APPLICATION_STARTING_DELAY  ((float) 1.0)
+
+#define   APPLICATION_EVENT_SHUTDOWN  (1 << 30)
+#define   APPLICATION_EVENT_STARTING  (1 << 29)
+
+          void                        application_shutdown ( application_t * application );
+          void                        application_starting ( application_t * application );
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+
+#define   APPLICATION_EVENT_SCHEDULE  (1 << 28)                                 // UTC scheduled events
+#define   APPLICATION_EVENT_PERIODIC  (1 << 27)                                 // Periodic timed events
+#define   APPLICATION_EVENT_TIMECODE  (1 << 26)                                 // UTC timecode set
+
+          void                        application_schedule ( application_t * application );
+          void                        application_periodic ( application_t * application );
+          void                        application_timecode ( application_t * application );
+
+#define   APPLICATION_PERIOD          ((float) 90.0)                            // Periodic check-in every minute and one half
 
 //-----------------------------------------------------------------------------
 // Application configuration options
@@ -121,116 +121,40 @@ static    void                        application_lower ( application_t * applic
           unsigned                    application_bluetooth ( application_t * application );
           unsigned                    application_nearfield ( application_t * application );
 
-#define   APPLICATION_OPTION_BLE      (1 << 31)
-#define   APPLICATION_OPTION_NFC      (1 << 30)
+#define   APPLICATION_OPTION_BLE      (1 << 31)                                 // Bluetooth low energy radio
+#define   APPLICATION_OPTION_NFC      (1 << 30)                                 // Near field radio
 
 //-----------------------------------------------------------------------------
-// Application settings update event
-//-----------------------------------------------------------------------------
-
-#define   APPLICATION_EVENT_SETTINGS  (1 << 31)
-
-          void                        application_settings ( application_t * application );
-
-//-----------------------------------------------------------------------------
-// Application shutdown and deep sleep
-//-----------------------------------------------------------------------------
-
-#define   APPLICATION_SHUTDOWN_DELAY  ((float) 2.5)
-
-#define   APPLICATION_EVENT_SHUTDOWN  (1 << 30)
-
-          void                        application_shutdown ( application_t * application );
-
-//-----------------------------------------------------------------------------
-// Scheduled events
-//-----------------------------------------------------------------------------
-
-#define   APPLICATION_EVENT_PERIODIC  (1 << 29)
-#define   APPLICATION_EVENT_SCHEDULE  (1 << 28)
-#define   APPLICATION_EVENT_TIMECODE  (1 << 27)
-
-          void                        application_periodic ( application_t * application );
-          void                        application_schedule ( application_t * application );
-          void                        application_timecode ( application_t * application );
-
-#define   APPLICATION_PERIOD          ((float) 60.0)
-
-//-----------------------------------------------------------------------------
-// Application indication modes
-//-----------------------------------------------------------------------------
-
-#define   APPLICATION_EVENT_INDICATE  (1 << 26)
-
-typedef   enum {
-
-          APPLICATION_INDICATE_NONE,                                            // Nothing to indicate (off)
-
-          APPLICATION_INDICATE_PROBLEM,                                         // There is a problem condition
-          APPLICATION_INDICATE_BATTERY,                                         // Battery is critically low
-          APPLICATION_INDICATE_CHARGER,                                         // Charger is connected
-          APPLICATION_INDICATE_CHARGED,                                         // Charger has charged battery
-          APPLICATION_INDICATE_CONNECT,                                         // Connected to peer
-          APPLICATION_INDICATE_BLINKER,                                         // Identity blinker
-
-          } application_indicate_t;
-
-          void                        application_indicate ( application_t * application );
-
-//-----------------------------------------------------------------------------
-// Battery level and charging status.
-//-----------------------------------------------------------------------------
-
-#define   APPLICATION_EVENT_CHARGER   (1 << 25)                                 // Charger connected or disconnected
-#define   APPLICATION_EVENT_BATTERY   (1 << 24)                                 // Battery level has changed
-
-          void                        application_charger ( application_t * application );
-          void                        application_battery ( application_t * application );
-
-#define   STARTING_BATTERY_THRESHOLD  ((float) 3.00)                            // Minimum battery power before startup
-#define   INDICATE_BATTERY_THRESHOLD  ((float) 3.25)                            // Minimum battery to allow indication
-#define   CRITICAL_BATTERY_THRESHOLD  ((float) 3.50)                            // Critical battery alert level
-
-//-----------------------------------------------------------------------------
-// System summary status check and update.
-//-----------------------------------------------------------------------------
-
-#define   APPLICATION_EVENT_SUMMARY   (1 << 23)                                 // Summary status update
-
-          void                        application_summary ( application_t * application );
-
-//-----------------------------------------------------------------------------
-// Communication events.
+// Interactive events.
 //-----------------------------------------------------------------------------
 
 #define   APPLICATION_TAG_DELAY       (256)                                     // Short 256ms delay after NFC tagged
-
-#define   APPLICATION_EVENT_TAGGED    (1 << 22)                                 // Near field tag has been scanned
+#define   APPLICATION_EVENT_TAGGED    (1 << 24)                                 // Near field tag has been scanned
 
           void                        application_tagged ( application_t * application );
 
-#define   APPLICATION_EVENT_ATTACH    (1 << 21)                                 // BLE peripheral has attached
-#define   APPLICATION_EVENT_DETACH    (1 << 20)                                 // BLE connection has detached
-#define   APPLICATION_EVENT_PROBED    (1 << 19)                                 // Scan response has been probed
-#define   APPLICATION_EVENT_EXPIRE    (1 << 18)                                 // Advertisement expired
+//-----------------------------------------------------------------------------
+// Bluetooth communication events.
+//-----------------------------------------------------------------------------
+
+          void                        application_advertise ( application_t * application );
+
+#define   APPLICATION_EVENT_ATTACH    (1 << 23)                                 // BLE peripheral has attached
+#define   APPLICATION_EVENT_DETACH    (1 << 22)                                 // BLE connection has detached
+#define   APPLICATION_EVENT_PROBED    (1 << 21)                                 // Scan response has been probed
+#define   APPLICATION_EVENT_EXPIRE    (1 << 20)                                 // Advertisement expired
 
           void                        application_attach ( application_t * application );
           void                        application_detach ( application_t * application );
           void                        application_probed ( application_t * application );
           void                        application_expire ( application_t * application );
 
-#define   APPLICATION_EVENT_STROBE    (1 << 17)
-#define   APPLICATION_EVENT_CANCEL    (1 << 16)
-
-          void                        application_strobe ( application_t * application );
-          void                        application_cancel ( application_t * application );
-
 //-----------------------------------------------------------------------------
-// Periodic telemetry and handling updates
+// Periodic telemetry updates
 //-----------------------------------------------------------------------------
 
-#define   APPLICATION_EVENT_TELEMETRY (1 << 15)
-#define   APPLICATION_EVENT_ARCHIVE   (1 << 14)
+#define   APPLICATION_EVENT_TELEMETRY (1 << 17)
+#define   APPLICATION_EVENT_ARCHIVE   (1 << 16)
 
           void                        application_telemetry ( application_t * application );
           void                        application_archive ( application_t * application );
@@ -239,15 +163,19 @@ typedef   enum {
 // Movement related events
 //-----------------------------------------------------------------------------
 
-#define   APPLICATION_EVENT_HANDLING  (1 << 13)
-#define   APPLICATION_EVENT_ORIENTED  (1 << 12)
+#define   APPLICATION_EVENT_HANDLING  (1 << 15)
+#define   APPLICATION_EVENT_ORIENTED  (1 << 14)
 
           void                        application_handling ( application_t * application );
           void                        application_oriented ( application_t * application );
 
-#define   APPLICATION_EVENT_STRESSED  (1 << 10)
-#define   APPLICATION_EVENT_DROPPED   (1 << 8)
-#define   APPLICATION_EVENT_TILTED    (1 << 8)
+//-----------------------------------------------------------------------------
+// Incident handling
+//-----------------------------------------------------------------------------
+
+#define   APPLICATION_EVENT_STRESSED  (1 << 13)
+#define   APPLICATION_EVENT_DROPPED   (1 << 12)
+#define   APPLICATION_EVENT_TILTED    (1 << 11)
 
           void                        application_stressed ( application_t * application );
           void                        application_dropped ( application_t * application );

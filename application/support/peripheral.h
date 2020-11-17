@@ -24,7 +24,7 @@
 // Central manager resource
 //-----------------------------------------------------------------------------
 
-#define   PERIPHERAL_MANAGER_STACK    512                                       // Thread stack size in bytes
+#define   PERIPHERAL_MANAGER_STACK    (512)                                     // Thread stack size in bytes
 #define   PERIPHERAL_MANAGER_PRIORITY (CTL_TASK_PRIORITY_STANDARD + 2)          // Thread priority
 
 typedef   struct {

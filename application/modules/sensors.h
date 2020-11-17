@@ -14,19 +14,21 @@
 #define   __SENSORS__
 
 //-----------------------------------------------------------------------------
+// Sensor module timing
 //-----------------------------------------------------------------------------
 
-#define   SENSORS_CLOSE_TIMEOUT       1000
+#define   SENSORS_CLOSE_TIMEOUT       (1024)
+#define   SENSORS_YIELD_TIMEOUT       (256)
 
 //-----------------------------------------------------------------------------
 // Telemetry manager resource
 //-----------------------------------------------------------------------------
 
-#define   SENSORS_MANAGER_STACK       768                                       // Thread stack size in bytes
+#define   SENSORS_MANAGER_STACK       (512)                                     // Thread stack size in bytes
 #define   SENSORS_MANAGER_PRIORITY    (CTL_TASK_PRIORITY_STANDARD + 5)          // Thread priority
 
 typedef   struct {
-          
+
           CTL_MUTEX_t                 mutex;                                    // Access mutex
           CTL_EVENT_SET_t             option;                                   // Option bits
           CTL_EVENT_SET_t             status;                                   // State and event bits
@@ -49,9 +51,9 @@ typedef   struct {
             float                     measurement;                              //  Pressure reading
             } pressure;
 
-          struct {                                                              // Surface readings:
+          struct {                                                              // Internal readings:
             float                     temperature;                              //  Die temperature
-            } surface;
+            } internal;
 
           } sensors_t;
 
@@ -75,13 +77,13 @@ static    void                        sensors_standby ( sensors_t * sensors );
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 
-#define   SENSORS_VALUES_MEASURED     (SENSORS_VALUE_PRESSURE | SENSORS_VALUE_HUMIDITY | SENSORS_VALUE_AMBIENT | SENSORS_VALUE_STANDBY | SENSORS_VALUE_SURFACE)
+#define   SENSORS_VALUES_MEASURED     (SENSOR_VALUE_INTERNAL | SENSORS_VALUE_PRESSURE | SENSORS_VALUE_HUMIDITY | SENSORS_VALUE_AMBIENT | SENSORS_VALUE_STANDBY)
 
-#define   SENSORS_VALUE_PRESSURE      (1 << 23)                                 // Pressure reading available
-#define   SENSORS_VALUE_HUMIDITY      (1 << 22)                                 // Humidity reading available
-#define   SENSORS_VALUE_AMBIENT       (1 << 21)                                 // Ambient temperature available
-#define   SENSORS_VALUE_STANDBY       (1 << 20)                                 // Standby temperature available
-#define   SENSORS_VALUE_SURFACE       (1 << 19)                                 // Surface temperature available
+#define   SENSORS_VALUE_INTERNAL      (1 << 23)                                 // Internal temperature available
+#define   SENSORS_VALUE_PRESSURE      (1 << 22)                                 // Pressure reading available
+#define   SENSORS_VALUE_HUMIDITY      (1 << 21)                                 // Humidity reading available
+#define   SENSORS_VALUE_AMBIENT       (1 << 20)                                 // Ambient temperature available
+#define   SENSORS_VALUE_STANDBY       (1 << 19)                                 // Standby temperature available
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
